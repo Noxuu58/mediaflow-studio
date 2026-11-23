@@ -1,12 +1,13 @@
 {
   "name": "mediaflow-studio",
-  "version": "3.0.0",
+  "version": "1.0.0",
   "description": "MediaFlow Studio — a polished media toolkit for video editors: convert, download, trim and extract audio.",
   "main": "src/main.js",
   "scripts": {
     "test": "node --test test/",
     "start": "electron .",
-    "dist": "electron-builder --win portable"
+    "fetch-ytdlp": "node scripts/fetch-ytdlp.js",
+    "dist": "node scripts/fetch-ytdlp.js && electron-builder --win --publish never"
   },
   "author": "Noxuu58",
   "license": "ISC",
@@ -29,12 +30,35 @@
     "asarUnpack": [
       "node_modules/ffmpeg-static/ffmpeg.exe"
     ],
+    "extraResources": [
+      {
+        "from": "vendor/yt-dlp.exe",
+        "to": "bin/yt-dlp.exe"
+      }
+    ],
     "win": {
-      "target": "portable",
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/icon.png"
     },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MediaFlow Studio",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "artifactName": "MediaFlow-Studio-Setup.exe"
+    },
     "portable": {
-      "artifactName": "MediaFlow-Studio-${version}-portable.exe"
+      "artifactName": "MediaFlow-Studio-Portable.exe"
     },
     "directories": {
       "output": "dist"

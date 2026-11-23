@@ -4,10 +4,17 @@ const os = require('os');
 const path = require('path');
 const { FFMPEG } = require('./convert');
 
-// yt-dlp is the user's own install (found on PATH) so it can be updated independently of this app.
+// Which yt-dlp to run is decided by main.js (bundled copy, user's choice, or PATH).
 let YTDLP = 'yt-dlp';
 const setBinary = (p) => { YTDLP = p || 'yt-dlp'; };
 const ENV = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+// YouTube needs a JavaScript runtime. Electron's own executable is one (Node) when ELECTRON_RUN_AS_NODE is set,
+// so users don't have to install Deno or Node.
+let RUNTIME = [];
+function setRuntime(execPath) {
+  RUNTIME = ['--no-js-runtimes', '--js-runtimes', `node:${execPath}`];
+  ENV.ELECTRON_RUN_AS_NODE = '1';
+}
 
 const VIDEO = ['mp4', 'mov', 'mkv'];
 const AUDIO = ['mp3', 'm4a', 'wav', 'flac', 'opus'];
@@ -24,7 +31,7 @@ const update = () => exec(['-U'], 180000).then((o) => o.trim().split(/\r?\n/).po
 
 async function analyze(url) {
   let json;
-  try { json = JSON.parse(await exec(['-J', '--no-playlist', '--no-warnings', '--', url])); } // `--`: a pasted "-x…" is never read as an option
+  try { json = JSON.parse(await exec([...RUNTIME, '-J', '--no-playlist', '--no-warnings', '--', url])); } // `--`: a pasted "-x…" is never read as an option
   catch (e) { throw new Error(errorLine(e.stderr, 'UNREADABLE')); }
   // shortcut: playlists are refused, add per-entry download if needed.
   if (json._type === 'playlist') throw new Error(`PLAYLIST:${json.entries?.length ?? '?'}`);
@@ -76,7 +83,7 @@ function attempt(id, url, { fmt, quality = 'best', outDir }, onProgress = () => 
   // Killed processes release file handles a moment after exiting: retry, and never let cleanup fail the job.
   const cleanup = () => fs.promises.rm(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
   const outFile = path.join(tmp, 'out.txt');
-  const args = [...formatArgs(fmt, quality), '--embed-metadata', '--no-playlist', '--newline', '--no-colors',
+  const args = [...RUNTIME, ...formatArgs(fmt, quality), '--embed-metadata', '--no-playlist', '--newline', '--no-colors',
     '--ffmpeg-location', FFMPEG, '-P', outDir, '-P', `temp:${tmp}`, '-o', '%(title).150B.%(ext)s',
     '--progress-template', 'download:MFP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s',
     '--print-to-file', 'after_move:filepath', outFile, '--', url];
@@ -113,4 +120,4 @@ function attempt(id, url, { fmt, quality = 'best', outDir }, onProgress = () => 
   });
 }
 
-module.exports = { analyze, download, cancel, version, update, setBinary, VIDEO, AUDIO };
+module.exports = { analyze, download, cancel, version, update, setBinary, setRuntime, VIDEO, AUDIO };

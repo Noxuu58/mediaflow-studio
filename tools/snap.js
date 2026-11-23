@@ -17,7 +17,25 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.on('web-contents-created', (_e, wc) => wc.on('console-message', (e) => { if (e.level === 'error' || e.level === 'warning') console.log(`[page ${e.level}] ${e.message}`); }));
 
-if (mode === 'icon') {
+if (mode === 'installer-art') {
+  // NSIS wants 24-bit BMPs of exact sizes: render the HTML, then convert with the bundled FFmpeg.
+  const { FFMPEG } = require('../src/convert');
+  const { execFileSync } = require('child_process');
+  app.whenReady().then(async () => {
+    for (const [part, w, h] of [['sidebar', 164, 314], ['header', 150, 57]]) {
+      const win = new BrowserWindow({ width: w, height: h, show: false, frame: false, useContentSize: true, webPreferences: { offscreen: true } });
+      await win.loadFile(path.join(__dirname, '..', 'build', 'installer-art.html'), { hash: part });
+      await wait(500);
+      const png = path.join(__dirname, '..', 'build', `installer-${part}.png`);
+      fs.writeFileSync(png, (await win.webContents.capturePage({ x: 0, y: 0, width: w, height: h })).resize({ width: w, height: h }).toPNG());
+      const bmp = path.join(__dirname, '..', 'build', `installer${part[0].toUpperCase()}${part.slice(1)}.bmp`);
+      execFileSync(FFMPEG, ['-v', 'error', '-y', '-i', png, '-pix_fmt', 'bgr24', bmp]);
+      fs.rmSync(png);
+      console.log(path.basename(bmp), fs.statSync(bmp).size, 'bytes');
+    }
+    app.quit();
+  });
+} else if (mode === 'icon') {
   app.whenReady().then(async () => {
     const w = new BrowserWindow({ width: 512, height: 512, show: false, frame: false, transparent: true,
       backgroundColor: '#00000000', webPreferences: { offscreen: true } });

@@ -1,0 +1,49 @@
+# Builds the Windows installer + portable app and publishes a GitHub Release.
+#   Release:   npm version minor && git push --follow-tags     (pushes tag vX.Y.Z → this workflow)
+#   Test build: Actions tab → Release → Run workflow            (artifacts only, nothing published)
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist   # also downloads and checksum-verifies yt-dlp.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaFlow-Studio
+          path: |
+            dist/MediaFlow-Studio-Setup.exe
+            dist/MediaFlow-Studio-Portable.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed "s/{{VERSION}}/$VERSION/g" .github/RELEASE_TEMPLATE.md > notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            dist/MediaFlow-Studio-Setup.exe \
+            dist/MediaFlow-Studio-Portable.exe \
+            --title "MediaFlow Studio $VERSION" \
+            --notes-file notes.md \
+            --generate-notes

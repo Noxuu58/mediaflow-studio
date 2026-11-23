@@ -46,7 +46,23 @@ ipcMain.handle('strip', (_e, src, duration) => strip(src, duration));
 
 ipcMain.handle('clipboard', () => clipboard.readText());
 ipcMain.handle('downloads-dir', () => app.getPath('downloads'));
-ipcMain.handle('dl-version', (_e, bin) => { dl.setBinary(bin); return dl.version(); });
+// yt-dlp ships inside the app (vendor/ → resources/bin). It runs from a copy in userData so the
+// Update button (yt-dlp -U) works even from Program Files or a portable exe that unpacks to a temp folder.
+// shortcut: an existing copy is never replaced by a newer bundled one; the Update button keeps it current.
+function bundledYtdlp() {
+  const bundled = app.isPackaged ? path.join(process.resourcesPath, 'bin', 'yt-dlp.exe') : path.join(__dirname, '..', 'vendor', 'yt-dlp.exe');
+  const copy = path.join(app.getPath('userData'), 'bin', 'yt-dlp.exe');
+  try {
+    if (!fs.existsSync(copy) && fs.existsSync(bundled)) {
+      fs.mkdirSync(path.dirname(copy), { recursive: true });
+      fs.copyFileSync(bundled, copy);
+    }
+  } catch {}
+  return fs.existsSync(copy) ? copy : null;
+}
+dl.setRuntime(process.execPath);
+// Order: the yt-dlp.exe the user picked → the bundled copy → yt-dlp on PATH.
+ipcMain.handle('dl-version', (_e, bin) => { dl.setBinary(bin || bundledYtdlp()); return dl.version(); });
 ipcMain.handle('dl-pick-binary', async () => (await dialog.showOpenDialog({
   title: 'yt-dlp.exe', properties: ['openFile'], filters: [{ name: 'yt-dlp', extensions: ['exe'] }],
 })).filePaths[0]);
