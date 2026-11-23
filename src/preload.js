@@ -1,0 +1,28 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+  pathOf: (file) => webUtils.getPathForFile(file),
+  info: (paths) => ipcRenderer.invoke('info', paths),
+  probe: (p) => ipcRenderer.invoke('probe', p),
+  pickFiles: () => ipcRenderer.invoke('pick-files'),
+  pickDir: () => ipcRenderer.invoke('pick-dir'),
+  reveal: (p) => ipcRenderer.invoke('reveal', p),
+  convert: (job) => ipcRenderer.invoke('convert', job),
+  trim: (job) => ipcRenderer.invoke('trim', job),
+  extract: (job) => ipcRenderer.invoke('extract', job),
+  strip: (src, duration) => ipcRenderer.invoke('strip', src, duration),
+  cancel: (id) => ipcRenderer.invoke('cancel', id),
+  taskbar: (p) => ipcRenderer.invoke('taskbar', p),
+  onProgress: (cb) => ipcRenderer.on('progress', (_e, d) => cb(d)),
+  clipboard: () => ipcRenderer.invoke('clipboard'),
+  downloadsDir: () => ipcRenderer.invoke('downloads-dir'),
+  dl: {
+    version: (bin) => ipcRenderer.invoke('dl-version', bin),
+    pickBinary: () => ipcRenderer.invoke('dl-pick-binary'),
+    update: () => ipcRenderer.invoke('dl-update'),
+    analyze: (url) => ipcRenderer.invoke('dl-analyze', url),
+    start: (job) => ipcRenderer.invoke('dl-start', job),
+    cancel: (id) => ipcRenderer.invoke('dl-cancel', id),
+    onProgress: (cb) => ipcRenderer.on('dl-progress', (_e, d) => cb(d)),
+  },
+});

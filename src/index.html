@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: https:; media-src 'self' file:; style-src 'self'">
+  <title>MediaFlow Studio</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <aside class="sidebar">
+    <div class="side-head">
+      <img class="brand-icon" src="../build/icon.png" alt="">
+      <div class="brand-text"><b>MediaFlow</b><span>Studio</span></div>
+    </div>
+    <nav id="nav">
+      <div class="nav-section" data-i18n="app.tools"></div>
+      <span class="nav-glider" aria-hidden="true"></span>
+    </nav>
+    <div class="side-foot">
+      <button id="lang" class="nav-item" type="button" data-i18n-title="app.langTip">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg></span>
+        <span class="nav-text" id="lang-label"></span>
+      </button>
+      <button id="sound" class="nav-item" type="button" data-i18n-title="app.soundsTip" aria-pressed="true">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="mute" d="m16 9.5 5 5m0-5-5 5"/></svg></span>
+        <span class="nav-text" data-i18n="app.sounds"></span>
+      </button>
+      <button id="collapse" class="nav-item" type="button" data-i18n-title="app.collapseTip">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M15 10l-2 2 2 2"/></svg></span>
+        <span class="nav-text" data-i18n="app.collapse"></span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="title"></h1>
+        <p id="subtitle"></p>
+      </div>
+    </header>
+    <div id="view" class="view"></div>
+  </div>
+
+  <div class="drop-overlay" aria-hidden="true">
+    <div class="drop-ring">
+      <svg viewBox="0 0 48 48"><path d="M24 30V10m0 0-8 8m8-8 8 8"/><path d="M10 28v7a5 5 0 0 0 5 5h18a5 5 0 0 0 5-5v-7"/></svg>
+      <b data-i18n="drop.title"></b>
+      <span data-i18n="drop.sub"></span>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <!-- Load order: i18n → sounds → shell → shared queue component → tools (sidebar order = script order). -->
+  <script src="i18n.js"></script>
+  <script src="sfx.js"></script>
+  <script src="app.js"></script>
+  <script src="tools/queue.js"></script>
+  <script src="tools/converter.js"></script>
+  <script src="tools/downloader.js"></script>
+  <script src="tools/trimmer.js"></script>
+  <script src="tools/extractor.js"></script>
+</body>
+</html>

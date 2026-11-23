@@ -1,0 +1,147 @@
+// Translations. English is the default; the choice is stored in localStorage ('lang').
+// A value is a string with {placeholders} or a function of the vars (for plurals).
+// To add a language: copy the `en` block, translate it, and add its name to LANGS.
+const I18n = (() => {
+  const s = (n) => (n > 1 ? 's' : '');
+  const dict = {
+    en: {
+      'app.tools': 'Tools', 'app.collapse': 'Collapse', 'app.collapseTip': 'Collapse sidebar',
+      'app.sounds': 'Sounds', 'app.soundsTip': 'Interface sounds', 'app.langTip': 'Language',
+      'app.langBusy': 'Finish running jobs before switching language',
+      'drop.title': 'Release to add', 'drop.sub': 'Files or links',
+      'unit.kb': 'KB', 'unit.mb': 'MB', 'unit.gb': 'GB',
+      'kind.image': 'Images', 'kind.audio': 'Audio', 'kind.video': 'Video',
+      'spec.fps': 'fps', 'spec.stereo': 'stereo', 'spec.mono': 'mono', 'spec.pcm': 'PCM {bits}-bit',
+      'common.browse': 'or click to browse', 'common.retry': 'Retry', 'common.cancel': 'Cancel', 'common.esc': 'Esc',
+      'common.reveal': 'Show in Explorer', 'common.left': '{t} left', 'common.estimating': 'Estimating…',
+      'common.outputSource': 'Same folder as source', 'common.outputTip': 'Output folder', 'common.outputReset': 'Back to the source folder',
+
+      'q.queue': 'Queue', 'q.files': ({ n }) => `${n} file${s(n)}`, 'q.add': 'Add', 'q.cleanDone': 'Remove finished', 'q.clear': 'Clear all',
+      'q.allTo': 'All to', 'q.ready': 'Ready', 'q.queued': 'Queued', 'q.cancelled': 'Cancelled', 'q.failed': 'Failed', 'q.done': 'Done',
+      'q.starting': 'Starting…', 'q.remove': 'Remove from queue', 'q.outFmt': 'Output format for {name}',
+      'q.overall': ({ i, n, left }) => `File ${i} of ${n}${left ? ` · about ${left} left` : ''}`,
+      'q.took': '→ {name} · in {time}',
+      'q.skipped': ({ n }) => `${n} item${s(n)} skipped: unsupported format`,
+      'q.cancelledToast': 'Queue cancelled',
+      'q.result': ({ ok, ko }) => (ko ? `${ok} done, ${ko} failed` : `${ok} file${s(ok)} done`),
+
+      'conv.label': 'Converter', 'conv.subtitle': 'Images, audio and video — maximum quality, lossless remux when possible',
+      'conv.hero': 'Drop your media here', 'conv.go': ({ n }) => (n > 1 ? `Convert ${n} files` : 'Convert'), 'conv.notify': 'Conversion complete',
+
+      'ext.label': 'Audio Extractor', 'ext.subtitle': 'Clean audio out of any video — loudness normalization and cleanup built in',
+      'ext.hero': 'Drop videos to extract their audio', 'ext.go': ({ n }) => (n > 1 ? `Extract ${n} files` : 'Extract'), 'ext.notify': 'Extraction complete',
+      'ext.in': 'From', 'ext.out': 'To', 'ext.clean': 'Cleanup', 'ext.cleanList': 'Loudness · Noise · Low-cut',
+      'ext.loudness': 'Loudness', 'ext.loud.off': 'Original level', 'ext.loud.14': 'Streaming · −14 LUFS',
+      'ext.loud.16': 'Podcast · −16 LUFS', 'ext.loud.23': 'Broadcast · −23 LUFS',
+      'ext.denoise': 'Reduce noise', 'ext.lowcut': 'Low-cut 80 Hz',
+
+      'trim.label': 'Trimmer', 'trim.subtitle': 'Cut clips in seconds — lossless stream copy, no re-encoding',
+      'trim.empty': 'Drop a video to trim', 'trim.emptySub': 'Space plays · I and O set the in and out points',
+      'trim.in': 'In', 'trim.out': 'Out', 'trim.length': 'Clip',
+      'trim.setIn': 'Set in point (I)', 'trim.setOut': 'Set out point (O)', 'trim.play': 'Play / pause (Space)',
+      'trim.fast': 'Fast · lossless', 'trim.precise': 'Frame-accurate',
+      'trim.modeTip': 'Fast copies the streams without re-encoding: instant and lossless, the clip starts on the nearest keyframe. Frame-accurate re-encodes at maximum quality.',
+      'trim.export': 'Export clip', 'trim.open': 'Open another', 'trim.exporting': 'Exporting {name}…',
+      'trim.saved': 'Clip saved: {name}', 'trim.notify': 'Clip exported', 'trim.showLast': 'Show last clip',
+      'trim.noPreview': 'No preview for this codec — the timeline and export still work',
+      'trim.unsupported': 'Pick a video or audio file',
+
+      'dl.label': 'Downloader', 'dl.subtitle': 'Video or audio from any link, in the format and quality you choose',
+      'dl.placeholder': 'Paste a YouTube, TikTok, Instagram, X, Vimeo, SoundCloud link…',
+      'dl.paste': 'Paste', 'dl.analyze': 'Analyze', 'dl.noLink': 'No valid link found',
+      'dl.analyzing': 'Reading the link…', 'dl.analyzingSub': 'yt-dlp is listing the available formats', 'dl.cantRead': "Can't read this link",
+      'dl.video': 'Video', 'dl.audio': 'Audio', 'dl.quality': 'Quality', 'dl.best': 'Best', 'dl.bestQuality': 'Best quality', 'dl.lossless': 'Lossless',
+      'dl.download': 'Download', 'dl.connecting': 'Connecting…', 'dl.finalizing': 'Finalizing…', 'dl.extracting': 'Extracting audio', 'dl.merging': 'Merging video + audio',
+      'dl.done': 'Downloaded: {title}', 'dl.failed': 'Download failed', 'dl.notify': 'Download complete',
+      'dl.emptyTitle': 'Paste a link to start', 'dl.emptySub': '1,000+ sites supported by yt-dlp · you can also drag a link from your browser',
+      'dl.list': 'Downloads', 'dl.dest': 'Downloads', 'dl.destTip': 'Windows Downloads folder', 'dl.destReset': 'Back to the Downloads folder',
+      'dl.update': 'Update', 'dl.updating': 'Updating yt-dlp…', 'dl.missing': 'yt-dlp not found',
+      'dl.missingSub': 'Install it with {cmd} and retry, or point to yt-dlp.exe.', 'dl.pick': 'Choose yt-dlp.exe…', 'dl.removeTip': 'Remove from list',
+
+      'err.CANCELLED': 'Cancelled', 'err.UNSUPPORTED': 'Unsupported format', 'err.BAD_RANGE': 'The out point must be after the in point',
+      'err.NO_AUDIO': 'This file has no audio track', 'err.UNREADABLE': 'Unreadable link',
+      'err.PLAYLIST': 'This link is a playlist ({n} items): paste a single video link',
+      'err.YTDLP_MISSING': 'yt-dlp not found', 'err.YTDLP_FAILED': 'yt-dlp failed (code {n})',
+    },
+    fr: {
+      'app.tools': 'Outils', 'app.collapse': 'Réduire', 'app.collapseTip': 'Réduire la barre latérale',
+      'app.sounds': 'Sons', 'app.soundsTip': "Sons de l'interface", 'app.langTip': 'Langue',
+      'app.langBusy': 'Terminez les tâches en cours avant de changer de langue',
+      'drop.title': 'Relâchez pour ajouter', 'drop.sub': 'Fichiers ou liens',
+      'unit.kb': 'Ko', 'unit.mb': 'Mo', 'unit.gb': 'Go',
+      'kind.image': 'Images', 'kind.audio': 'Audio', 'kind.video': 'Vidéo',
+      'spec.fps': 'ips', 'spec.stereo': 'stéréo', 'spec.mono': 'mono', 'spec.pcm': 'PCM {bits} bits',
+      'common.browse': 'ou cliquez pour parcourir', 'common.retry': 'Réessayer', 'common.cancel': 'Annuler', 'common.esc': 'Échap',
+      'common.reveal': "Afficher dans l'Explorateur", 'common.left': '{t} restantes', 'common.estimating': 'Estimation…',
+      'common.outputSource': 'Même dossier que la source', 'common.outputTip': 'Dossier de destination', 'common.outputReset': 'Revenir au dossier source',
+
+      'q.queue': "File d'attente", 'q.files': ({ n }) => `${n} fichier${s(n)}`, 'q.add': 'Ajouter', 'q.cleanDone': 'Retirer les terminés', 'q.clear': 'Tout vider',
+      'q.allTo': 'Tout en', 'q.ready': 'Prêt', 'q.queued': 'En file', 'q.cancelled': 'Annulé', 'q.failed': 'Échec', 'q.done': 'Terminé',
+      'q.starting': 'Démarrage…', 'q.remove': 'Retirer de la file', 'q.outFmt': 'Format de sortie pour {name}',
+      'q.overall': ({ i, n, left }) => `Fichier ${i} sur ${n}${left ? ` · environ ${left} restantes` : ''}`,
+      'q.took': '→ {name} · en {time}',
+      'q.skipped': ({ n }) => `${n} élément${s(n)} ignoré${s(n)} : format non pris en charge`,
+      'q.cancelledToast': 'File annulée',
+      'q.result': ({ ok, ko }) => (ko ? `${ok} terminé${s(ok)}, ${ko} échec${s(ko)}` : `${ok} fichier${s(ok)} terminé${s(ok)}`),
+
+      'conv.label': 'Convertisseur', 'conv.subtitle': 'Images, audio et vidéo — qualité maximale, remux sans perte quand c’est possible',
+      'conv.hero': 'Glissez vos médias ici', 'conv.go': ({ n }) => (n > 1 ? `Convertir ${n} fichiers` : 'Convertir'), 'conv.notify': 'Conversion terminée',
+
+      'ext.label': 'Extracteur audio', 'ext.subtitle': "L'audio propre de n'importe quelle vidéo — normalisation et nettoyage intégrés",
+      'ext.hero': 'Déposez des vidéos pour en extraire l’audio', 'ext.go': ({ n }) => (n > 1 ? `Extraire ${n} fichiers` : 'Extraire'), 'ext.notify': 'Extraction terminée',
+      'ext.in': 'Depuis', 'ext.out': 'Vers', 'ext.clean': 'Nettoyage', 'ext.cleanList': 'Volume · Bruit · Coupe-bas',
+      'ext.loudness': 'Volume', 'ext.loud.off': 'Niveau d’origine', 'ext.loud.14': 'Streaming · −14 LUFS',
+      'ext.loud.16': 'Podcast · −16 LUFS', 'ext.loud.23': 'Télé · −23 LUFS',
+      'ext.denoise': 'Réduire le bruit', 'ext.lowcut': 'Coupe-bas 80 Hz',
+
+      'trim.label': 'Découpe', 'trim.subtitle': 'Coupez des extraits en quelques secondes — copie sans perte, sans réencodage',
+      'trim.empty': 'Déposez une vidéo à découper', 'trim.emptySub': "Espace lit · I et O placent l'entrée et la sortie",
+      'trim.in': 'Entrée', 'trim.out': 'Sortie', 'trim.length': 'Extrait',
+      'trim.setIn': "Placer l'entrée (I)", 'trim.setOut': 'Placer la sortie (O)', 'trim.play': 'Lecture / pause (Espace)',
+      'trim.fast': 'Rapide · sans perte', 'trim.precise': "Précis à l'image",
+      'trim.modeTip': "Rapide copie les flux sans réencoder : instantané et sans perte, l'extrait commence sur l'image clé la plus proche. Précis réencode en qualité maximale.",
+      'trim.export': "Exporter l'extrait", 'trim.open': 'Ouvrir une autre', 'trim.exporting': 'Export de {name}…',
+      'trim.saved': 'Extrait enregistré : {name}', 'trim.notify': 'Extrait exporté', 'trim.showLast': 'Voir le dernier extrait',
+      'trim.noPreview': "Pas d'aperçu pour ce codec — la timeline et l'export fonctionnent quand même",
+      'trim.unsupported': 'Choisissez un fichier vidéo ou audio',
+
+      'dl.label': 'Téléchargement', 'dl.subtitle': 'Vidéo ou audio depuis un lien, dans le format et la qualité de votre choix',
+      'dl.placeholder': 'Collez un lien YouTube, TikTok, Instagram, X, Vimeo, SoundCloud…',
+      'dl.paste': 'Coller', 'dl.analyze': 'Analyser', 'dl.noLink': 'Aucun lien valide détecté',
+      'dl.analyzing': 'Analyse du lien…', 'dl.analyzingSub': 'yt-dlp lit les formats disponibles', 'dl.cantRead': 'Impossible de lire ce lien',
+      'dl.video': 'Vidéo', 'dl.audio': 'Audio', 'dl.quality': 'Qualité', 'dl.best': 'Meilleure', 'dl.bestQuality': 'Meilleure qualité', 'dl.lossless': 'Sans perte',
+      'dl.download': 'Télécharger', 'dl.connecting': 'Connexion…', 'dl.finalizing': 'Finalisation…', 'dl.extracting': 'Extraction audio', 'dl.merging': 'Assemblage vidéo + audio',
+      'dl.done': 'Téléchargé : {title}', 'dl.failed': 'Échec du téléchargement', 'dl.notify': 'Téléchargement terminé',
+      'dl.emptyTitle': 'Collez un lien pour commencer', 'dl.emptySub': 'Plus de 1 000 sites pris en charge par yt-dlp · vous pouvez aussi glisser un lien depuis le navigateur',
+      'dl.list': 'Téléchargements', 'dl.dest': 'Téléchargements', 'dl.destTip': 'Dossier Téléchargements de Windows', 'dl.destReset': 'Revenir au dossier Téléchargements',
+      'dl.update': 'Mettre à jour', 'dl.updating': 'Mise à jour de yt-dlp…', 'dl.missing': 'yt-dlp introuvable',
+      'dl.missingSub': 'Installez-le avec {cmd} puis réessayez, ou indiquez où se trouve yt-dlp.exe.', 'dl.pick': 'Choisir yt-dlp.exe…', 'dl.removeTip': 'Retirer de la liste',
+
+      'err.CANCELLED': 'Annulé', 'err.UNSUPPORTED': 'Format non pris en charge', 'err.BAD_RANGE': "La sortie doit être après l'entrée",
+      'err.NO_AUDIO': "Ce fichier n'a pas de piste audio", 'err.UNREADABLE': 'Lien illisible',
+      'err.PLAYLIST': "Ce lien est une playlist ({n} éléments) : collez le lien d'une seule vidéo",
+      'err.YTDLP_MISSING': 'yt-dlp introuvable', 'err.YTDLP_FAILED': 'yt-dlp a échoué (code {n})',
+    },
+  };
+  const LANGS = { en: 'English', fr: 'Français' };
+  let lang = 'en';
+  try { lang = dict[localStorage.getItem('lang')] ? localStorage.getItem('lang') : 'en'; } catch {}
+  document.documentElement.lang = lang;
+
+  function t(key, vars = {}) {
+    const v = dict[lang][key] ?? dict.en[key] ?? key;
+    return typeof v === 'function' ? v(vars) : v.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+  }
+  // Backend errors arrive as codes ("CANCELLED", "PLAYLIST:12"); anything else is shown as-is.
+  function error(e) {
+    const msg = String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+    const [, code, arg] = /^([A-Z_]+)(?::(.*))?$/.exec(msg) || [];
+    return code && dict.en[`err.${code}`] ? t(`err.${code}`, { n: arg }) : msg;
+  }
+  // Static markup: data-i18n (text), data-i18n-title (tooltip).
+  function apply(root) {
+    root.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    root.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+  }
+  return { t, error, apply, LANGS, dict, get lang() { return lang; } };
+})();
