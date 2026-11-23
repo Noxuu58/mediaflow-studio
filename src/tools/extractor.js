@@ -17,5 +17,14 @@ Tools.extract = QueueTool({
     { id: 'denoise', label: 'ext.denoise', type: 'toggle', value: '0' },
     { id: 'lowcut', label: 'ext.lowcut', type: 'toggle', value: '0' },
   ],
+  advancedTitle: 'adv.titleAudio',
+  advanced: [
+    { id: 'track', label: 'adv.track', type: 'select', value: 'first',
+      choices: [['first', 'adv.tracks.first'], ['mix', 'adv.tracks.mix'], ['2', 'adv.track.2'], ['3', 'adv.track.3'], ['4', 'adv.track.4']] },
+    { id: 'channels', label: 'adv.channels', type: 'select', value: 'keep',
+      choices: [['keep', 'adv.channels.keep'], ['mono', 'adv.channels.mono'], ['split', 'adv.channels.split']] },
+    { id: 'depth', label: 'adv.depth', type: 'select', value: '16', choices: [['16', 'adv.bits.16'], ['24', 'adv.bits.24']] },
+    { id: 'rate', label: 'adv.rate', type: 'select', value: 'source', choices: [['source', 'adv.source'], ['48000', '48 kHz'], ['44100', '44.1 kHz']] },
+  ],
   run: ({ id, src, target, outDir, options }) => window.api.extract({ id, src, outDir, options: { ...options, format: target } }),
 });

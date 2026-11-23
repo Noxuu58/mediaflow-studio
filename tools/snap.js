@@ -54,7 +54,27 @@ if (mode === 'installer-art') {
     const rows = () => js(`[...document.querySelectorAll('.tool:not([hidden]) .row')].map((r) => r.className + ' | ' + r.querySelector('.spec').textContent).join('\\n')`);
     const reload = async () => { const done = new Promise((r) => w.webContents.once('did-finish-load', r)); w.webContents.reload(); await done; await wait(700); };
     try {
-      if (mode === 'update') {
+      if (mode === 'pro') {
+        // v1.1: Simple mode with presets → Proxy applied → Advanced panel → batch done → Extractor advanced.
+        await go('convert'); await wait(600);
+        await js(`Tools.convert.addFiles(${JSON.stringify(args)})`);
+        await wait(3000); await save('1-simple');
+        await js(`document.querySelector('.tool-convert .preset[data-preset="@proxy"]').click()`);
+        await wait(700); await save('2-proxy');
+        await js(`document.querySelector('.tool-convert .adv-toggle').click()`);
+        await wait(1200); await save('3-advanced');
+        await js('Tools.convert.runAll(); 0');
+        await until(`document.querySelector('.tool-convert .stop').hidden`);
+        await wait(800); await save('4-done');
+        console.log(await rows());
+        console.log('gpu chip:', await js(`document.querySelector('.tool-convert .adv-gpu').textContent`));
+        await js(`document.querySelector('.tool-convert .adv-toggle').click()`);
+        await go('extract'); await wait(600);
+        await js(`Tools.extract.addFiles(${JSON.stringify(args.filter((f) => /\.(wav|mov)$/i.test(f)))})`);
+        await js(`document.querySelector('.tool-extract .adv-toggle').click()`);
+        await wait(1800); await save('5-extract-adv');
+        await js(`document.querySelector('.tool-extract .adv-toggle').click(); ['convert.last', 'convert.adv.open', 'extract.adv.open'].forEach((k) => localStorage.removeItem(k))`);
+      } else if (mode === 'update') {
         // Feeds the update banner every state the updater can send, without a real release.
         const states = [
           ['1-available', { state: 'available', version: '1.1.0' }],

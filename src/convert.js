@@ -59,30 +59,88 @@ function cancel(id) {
 }
 const killAll = () => cancel();
 
-// One ffmpeg pass: duration, stream summary and (for video) a small JPEG thumbnail.
-function probe(src) {
-  const kind = kindOf(src);
-  const thumb = kind === 'video' ? ['-frames:v', '1', '-vf', 'scale=192:-2', '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '5', 'pipe:1'] : [];
+// ffprobe ships next to the app (resources/bin) or in vendor/ during development (scripts/fetch-ffprobe.js).
+const FFPROBE = [process.resourcesPath && path.join(process.resourcesPath, 'bin', 'ffprobe.exe'),
+  path.join(__dirname, '..', 'vendor', 'ffprobe.exe')].find((p) => p && fs.existsSync(p));
+
+// Runs a binary and collects stdout (Buffer). Never rejects: probing must not break the UI.
+function collect(bin, args, timeout = 20000) {
   return new Promise((resolve) => {
-    const p = spawn(FFMPEG, ['-hide_banner', '-nostdin', ...(thumb.length ? ['-ss', '1'] : []), '-i', src, ...thumb], { windowsHide: true });
-    const timer = setTimeout(() => p.kill(), 15000);
-    const img = []; let err = '';
-    p.stdout.on('data', (d) => img.push(d));
-    p.stderr.on('data', (d) => { err += d; });
-    p.on('error', () => {});
-    p.on('close', () => {
-      clearTimeout(timer);
-      const d = /Duration: (\d+):(\d+):([\d.]+)/.exec(err);
-      const v = kind !== 'audio' && /Stream #.*?Video: (\w+).*?, (\d{2,5})x(\d{2,5})(?:.*?([\d.]+) fps)?/.exec(err);
-      const a = /Stream #.*?Audio: (\w+).*?, (\d+) Hz, (\w+)/.exec(err);
-      resolve({
-        duration: d ? +d[1] * 3600 + +d[2] * 60 + +d[3] : 0,
-        video: v ? { codec: v[1], width: +v[2], height: +v[3], fps: v[4] ? +v[4] : 0 } : null,
-        audio: a ? { codec: a[1], rate: +a[2], layout: a[3] } : null,
-        thumb: img.length ? `data:image/jpeg;base64,${Buffer.concat(img).toString('base64')}` : null,
-      });
-    });
+    const p = spawn(bin, args, { windowsHide: true });
+    const out = [];
+    const timer = setTimeout(() => p.kill(), timeout);
+    p.stdout.on('data', (d) => out.push(d));
+    p.stderr.resume();
+    p.on('error', () => { clearTimeout(timer); resolve(Buffer.alloc(0)); });
+    p.on('close', () => { clearTimeout(timer); resolve(Buffer.concat(out)); });
   });
+}
+const json = (buf) => { try { return JSON.parse(buf.toString()); } catch { return null; } };
+const frac = (s) => { const [a, b] = String(s || '0').split('/').map(Number); return b ? a / b : a || 0; };
+const HDR_TRANSFERS = ['smpte2084', 'arib-std-b67']; // PQ (HDR10, Dolby Vision base) and HLG
+
+// Variable frame rate: the frame interval of the first ~300 frames varies (phones, OBS, screen captures).
+function isVfr(pts) {
+  const t = pts.filter(Number.isFinite).sort((a, b) => a - b);
+  const d = t.slice(1).map((x, i) => x - t[i]).filter((x) => x > 1e-4).sort((a, b) => a - b);
+  if (d.length < 10) return false;
+  const pick = (q) => d[Math.floor(q * (d.length - 1))];
+  return pick(0.95) / pick(0.05) > 1.5;
+}
+
+// File inspection with ffprobe (JSON): streams, colour, bit depth, VFR, audio tracks, timecode,
+// plus a small JPEG thumbnail from ffmpeg for videos. Fields stay null when unknown.
+async function probe(src, { thumb = true } = {}) {
+  const kind = kindOf(src);
+  const [meta, packets, img] = await Promise.all([
+    collect(FFPROBE, ['-v', 'error', '-of', 'json', '-show_format', '-show_streams', src]).then(json),
+    kind === 'video' ? collect(FFPROBE, ['-v', 'error', '-of', 'json', '-select_streams', 'v:0', '-read_intervals', '%+#300', '-show_entries', 'packet=pts_time', src]).then(json) : null,
+    kind === 'video' && thumb ? collect(FFMPEG, ['-hide_banner', '-nostdin', '-ss', '1', '-i', src, '-frames:v', '1', '-vf', 'scale=192:-2', '-f', 'image2pipe', '-c:v', 'mjpeg', '-q:v', '5', 'pipe:1'], 15000) : null,
+  ]);
+  const streams = meta?.streams || [];
+  const vs = kind !== 'audio' && streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+  const as = streams.filter((s) => s.codec_type === 'audio');
+  const tag = (s, k) => s?.tags?.[k];
+  const color = (v) => (v && !/unknown|reserved|unspecified/.test(v) ? v : null);
+  const video = vs ? {
+    codec: vs.codec_name,
+    width: vs.width, height: vs.height,
+    fps: +frac(vs.avg_frame_rate || vs.r_frame_rate).toFixed(3),
+    baseFps: +frac(vs.r_frame_rate).toFixed(3), // the stream's nominal rate (30 for a VFR phone clip)
+    pixFmt: vs.pix_fmt,
+    depth: Number(/(\d+)(?:le|be)$/.exec(vs.pix_fmt || '')?.[1]) || Number(vs.bits_per_raw_sample) || 8,
+    hdr: HDR_TRANSFERS.includes(vs.color_transfer),
+    vfr: kind === 'video' && isVfr((packets?.packets || []).map((p) => Number(p.pts_time))),
+    color: { primaries: color(vs.color_primaries), transfer: color(vs.color_transfer), space: color(vs.color_space) },
+    rotation: Number(vs.side_data_list?.find((d) => d.rotation != null)?.rotation ?? tag(vs, 'rotate') ?? 0),
+  } : null;
+  const audios = as.map((s) => ({ codec: s.codec_name, rate: Number(s.sample_rate), channels: s.channels, layout: s.channel_layout || `${s.channels}ch` }));
+  return {
+    duration: Number(meta?.format?.duration) || 0,
+    bitrate: Number(meta?.format?.bit_rate) || 0,
+    video,
+    audio: audios[0] || null,
+    audios,
+    timecode: tag(meta?.format, 'timecode') || streams.map((s) => tag(s, 'timecode')).find(Boolean) || null,
+    thumb: img?.length ? `data:image/jpeg;base64,${img.toString('base64')}` : null,
+  };
+}
+
+// ---- GPU encoders: tried once (a tiny encode); the first that works is used for H.264 / HEVC.
+let gpuCheck;
+function detectGpu() {
+  const works = (enc) => new Promise((resolve) => {
+    const p = spawn(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=black:s=256x256:r=30:d=0.2', '-c:v', enc, '-f', 'null', '-'], { windowsHide: true });
+    const timer = setTimeout(() => p.kill(), 15000);
+    p.on('error', () => resolve(false));
+    p.on('close', (code) => { clearTimeout(timer); resolve(code === 0); });
+  });
+  return (gpuCheck ||= (async () => {
+    for (const [vendor, h264, hevc] of [['NVIDIA NVENC', 'h264_nvenc', 'hevc_nvenc'], ['Intel Quick Sync', 'h264_qsv', 'hevc_qsv'], ['AMD AMF', 'h264_amf', 'hevc_amf']]) {
+      if (await works(h264)) return { vendor, h264, hevc: (await works(hevc)) ? hevc : null };
+    }
+    return null;
+  })());
 }
 
 // Timeline preview strip: evenly spaced video frames side by side, or the waveform of an audio file.
@@ -179,20 +237,175 @@ function trim(src, { start, end, precise }, outDir, onProgress = () => {}, id) {
   return produce(id, out, [args], onProgress, end - start);
 }
 
+// ---- Presets (Simple mode) + Advanced overrides -----------------------------------------------
+// The UI only sends a preset id and the advanced choices; everything is validated against these lists.
+const PRESETS = {
+  tiktok: { codec: 'h264', speed: 'fast', container: 'mp4', vertical: true, fps: 30, depth: 'auto', height: null, audio: 'aac192', tracks: 'first', loudness: -14, suffix: ' TikTok' },
+  youtube: { codec: 'h264', speed: 'quality', container: 'mp4', fps: 'fix', depth: 'auto', height: null, audio: 'aac320', tracks: 'first', suffix: ' YouTube' },
+  proxy: { codec: 'prores_proxy', container: 'mov', fps: 'fix', depth: 'auto', height: 1080, audio: 'pcm16', tracks: 'all', suffix: ' Proxy' },
+  audio: { codec: 'none', container: 'wav', audio: 'pcm24', tracks: 'first', suffix: '' },
+};
+const ADVANCED = {
+  codec: ['auto', 'h264', 'hevc', 'prores_proxy', 'prores_lt', 'prores', 'prores_hq', 'dnxhr_lb', 'dnxhr_sq', 'dnxhr_hq', 'dnxhr_hqx'],
+  container: ['auto', 'mp4', 'mov', 'mkv', 'mxf'],
+  depth: ['auto', '8', '10'],
+  fps: ['auto', 'keep', 'fix', '24', '25', '30', '50', '60'],
+  height: ['auto', 'source', '2160', '1440', '1080', '720'],
+  audio: ['auto', 'aac192', 'aac320', 'pcm16', 'pcm24', 'copy'],
+  tracks: ['auto', 'first', 'all', 'mix'],
+  gpu: ['auto', 'on', 'off'],
+};
+const AUDIO_ONLY_KEYS = ['audio', 'tracks'];
+
+function settingsFor(preset, adv = {}) {
+  const base = PRESETS[preset];
+  if (!base) throw new Error('UNSUPPORTED');
+  const s = { gpu: 'auto', ...base };
+  for (const [k, allowed] of Object.entries(ADVANCED)) {
+    const v = adv[k];
+    if (v == null || v === 'auto' || v === '') continue;
+    if (!allowed.includes(String(v))) throw new Error('UNSUPPORTED');
+    if (preset === 'audio' && !AUDIO_ONLY_KEYS.includes(k)) continue; // video settings don't apply to audio
+    s[k] = /^\d+$/.test(v) ? Number(v) : v;
+  }
+  if (s.height === 'source') s.height = null;
+  if (s.fps === 'keep') s.fps = null;
+  // Keep codec / container / audio combinations that editors and players actually accept.
+  const intra = /^(prores|dnxhr)/.test(s.codec);
+  if (preset === 'audio') s.container = /^aac/.test(s.audio) ? 'm4a' : 'wav';
+  else {
+    if (intra && s.container === 'mp4') s.container = 'mov';
+    if (!intra && s.container === 'mxf') s.container = 'mov';
+    if (s.container === 'mp4' && /^pcm/.test(s.audio)) s.audio = 'aac320';
+    if (s.container === 'mxf' && !/^pcm/.test(s.audio)) s.audio = 'pcm24';
+  }
+  return s;
+}
+
+const STANDARD_FPS = [['24000/1001', 23.976], ['24', 24], ['25', 25], ['30000/1001', 29.97], ['30', 30], ['50', 50], ['60000/1001', 59.94], ['60', 60]];
+const nearestFps = (f) => STANDARD_FPS.reduce((best, cur) => (Math.abs(cur[1] - f) < Math.abs(best[1] - f) ? cur : best))[0];
+
+function videoEncoder(codec, depth, speed, hw) {
+  const fast = speed === 'fast';
+  if (codec === 'h264') {
+    if (hw?.h264 && depth === 8) {
+      if (hw.h264 === 'h264_nvenc') return ['-c:v', 'h264_nvenc', '-preset', fast ? 'p4' : 'p6', '-tune', 'hq', '-rc', 'vbr', '-cq', fast ? '23' : '19', '-b:v', '0', '-profile:v', 'high', '-pix_fmt', 'yuv420p'];
+      if (hw.h264 === 'h264_qsv') return ['-c:v', 'h264_qsv', '-preset', fast ? 'faster' : 'slower', '-global_quality', fast ? '24' : '20', '-pix_fmt', 'nv12'];
+      const q = fast ? '23' : '19';
+      return ['-c:v', 'h264_amf', '-quality', fast ? 'speed' : 'quality', '-rc', 'cqp', '-qp_i', q, '-qp_p', q, '-qp_b', q, '-pix_fmt', 'yuv420p'];
+    }
+    return ['-c:v', 'libx264', '-preset', fast ? 'veryfast' : 'slow', '-crf', fast ? '21' : '17',
+      '-profile:v', depth === 10 ? 'high10' : 'high', '-pix_fmt', depth === 10 ? 'yuv420p10le' : 'yuv420p'];
+  }
+  if (codec === 'hevc') {
+    const ten = depth === 10;
+    if (hw?.hevc === 'hevc_nvenc') return ['-c:v', 'hevc_nvenc', '-preset', 'p6', '-tune', 'hq', '-rc', 'vbr', '-cq', '21', '-b:v', '0', '-tag:v', 'hvc1', ...(ten ? ['-profile:v', 'main10', '-pix_fmt', 'p010le'] : ['-pix_fmt', 'yuv420p'])];
+    if (hw?.hevc === 'hevc_qsv') return ['-c:v', 'hevc_qsv', '-global_quality', '22', '-tag:v', 'hvc1', '-pix_fmt', ten ? 'p010le' : 'nv12'];
+    if (hw?.hevc === 'hevc_amf') return ['-c:v', 'hevc_amf', '-quality', 'quality', '-rc', 'cqp', '-qp_i', '20', '-qp_p', '20', '-tag:v', 'hvc1', '-pix_fmt', ten ? 'p010le' : 'yuv420p'];
+    return ['-c:v', 'libx265', '-preset', 'medium', '-crf', '20', '-tag:v', 'hvc1', '-x265-params', 'log-level=error', '-pix_fmt', ten ? 'yuv420p10le' : 'yuv420p'];
+  }
+  if (codec.startsWith('prores')) return ['-c:v', 'prores_ks', '-profile:v', String({ prores_proxy: 0, prores_lt: 1, prores: 2, prores_hq: 3 }[codec]), '-vendor', 'apl0', '-pix_fmt', 'yuv422p10le'];
+  return ['-c:v', 'dnxhd', '-profile:v', codec, '-pix_fmt', codec === 'dnxhr_hqx' ? 'yuv422p10le' : 'yuv422p'];
+}
+
+// Builds the FFmpeg arguments for a preset job. Returns { tries, ext, usesGpu }: `tries` holds the GPU
+// command first and the CPU one as fallback (a driver can refuse a format or a size).
+function buildArgs(src, info, s, gpu) {
+  const audios = info.audios || [];
+  const af = s.loudness ? [`loudnorm=I=${s.loudness}:TP=-1.5:LRA=11`] : [];
+  let audio = s.audio;
+  if (af.length && audio === 'copy') audio = 'aac320'; // filters need a re-encode
+  const acodec = { aac192: ['-c:a', 'aac', '-b:a', '192k'], aac320: ['-c:a', 'aac', '-b:a', '320k'], pcm16: ['-c:a', 'pcm_s16le'], pcm24: ['-c:a', 'pcm_s24le'], copy: ['-c:a', 'copy'] }[audio];
+  const rate = audio === 'copy' ? [] : ['-ar', '48000'];
+  let amap = [], fc = [];
+  if (audios.length) {
+    if (s.tracks === 'mix' && audios.length > 1) {
+      fc.push(`${audios.map((_, i) => `[0:a:${i}]`).join('')}amix=inputs=${audios.length}:normalize=0${af.length ? `,${af.join(',')}` : ''}[aout]`);
+      amap = ['-map', '[aout]'];
+    } else amap = ['-map', s.tracks === 'all' ? '0:a' : '0:a:0'];
+  }
+  const afArgs = af.length && !fc.length && audios.length ? ['-af', af.join(',')] : [];
+  const audioArgs = audios.length ? [...amap, ...afArgs, ...acodec, ...rate] : [];
+
+  if (s.codec === 'none') {
+    if (!audios.length) throw new Error('NO_AUDIO');
+    return { tries: [['-i', src, ...(fc.length ? ['-filter_complex', fc.join(';')] : []), '-vn', ...audioArgs, '-map_metadata', '0']], ext: s.container, usesGpu: false };
+  }
+
+  const v = info.video;
+  if (!v) throw new Error('UNSUPPORTED');
+  const intra = /^(prores|dnxhr)/.test(s.codec);
+  const depth = s.depth === 8 ? 8 : s.depth === 10 ? 10
+    : s.codec.startsWith('prores') || s.codec === 'dnxhr_hqx' ? 10
+      : s.codec === 'hevc' && v.depth >= 10 ? 10 : 8;
+  const tonemap = v.hdr && depth === 8; // HDR → SDR so 8-bit deliveries don't look washed out
+  const vf = [];
+  if (tonemap) vf.push('zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv');
+  const turned = Math.abs(v.rotation) % 180 === 90; // ffmpeg auto-rotates before the filters
+  const W = turned ? v.height : v.width, H = turned ? v.width : v.height;
+  if (s.vertical) vf.push(W > H ? 'crop=trunc(ih*9/16/2)*2:ih,scale=1080:1920:flags=lanczos' : 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2');
+  else if (s.height && H > s.height) vf.push(`scale=-2:${s.height}:flags=lanczos`);
+  const fps = typeof s.fps === 'number' ? String(s.fps) : s.fps === 'fix' && v.vfr ? nearestFps(v.baseFps || v.fps) : null;
+  if (fps) vf.push(`fps=${fps}`); // constant frame rate: no audio drift in the editor
+  const colorTags = tonemap ? ['-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709']
+    : [['-color_primaries', v.color.primaries], ['-color_trc', v.color.transfer], ['-colorspace', v.color.space]].filter(([, x]) => x).flat();
+  const keepTc = info.timecode && ['mov', 'mp4', 'mxf'].includes(s.container) ? ['-timecode', info.timecode] : [];
+  const mux = s.container === 'mp4' || s.container === 'mov' ? ['-movflags', '+faststart'] : [];
+  const filters = [...(vf.length ? [`[0:v:0]${vf.join(',')}[vout]`] : []), ...fc];
+  const head = ['-i', src, ...(filters.length ? ['-filter_complex', filters.join(';')] : []), '-map', vf.length ? '[vout]' : '0:v:0'];
+  const tail = [...audioArgs, ...colorTags, ...keepTc, '-map_metadata', '0', ...mux];
+  const hw = !intra && s.gpu !== 'off' && gpu && (s.codec === 'h264' ? depth === 8 : Boolean(gpu.hevc)) ? gpu : null;
+  const cpu = [...head, ...videoEncoder(s.codec, depth, s.speed, null), ...tail];
+  return { tries: hw ? [[...head, ...videoEncoder(s.codec, depth, s.speed, hw), ...tail], cpu] : [cpu], ext: s.container, usesGpu: Boolean(hw) };
+}
+
+// Preset job: probe → settings → FFmpeg (GPU first when available, CPU fallback).
+async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
+  const kind = kindOf(src);
+  if (kind !== 'video' && !(kind === 'audio' && preset === 'audio')) throw new Error('UNSUPPORTED');
+  const s = settingsFor(preset, adv);
+  const info = await probe(src, { thumb: false });
+  const gpu = s.gpu === 'off' ? null : await detectGpu();
+  const { tries, ext } = buildArgs(src, info, s, gpu);
+  return produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, ext), tries, onProgress, info.duration);
+}
+
 const AUDIO_OUT = ['mp3', 'wav', 'flac', 'm4a'];
 const LOUDNESS = [-14, -16, -23]; // streaming, podcast, broadcast (EBU R128)
 
-// First audio track → audio file, with optional cleanup: low-cut, FFT denoise, loudness normalization.
-async function extract(src, { format, loudness, denoise, lowcut } = {}, outDir, onProgress = () => {}, id) {
+const EXTRACT_ADV = { track: /^(first|mix|[1-9]\d?)$/, channels: /^(keep|mono|split)$/, depth: /^(16|24)$/, rate: /^(source|44100|48000)$/ };
+
+// An audio track → audio file, with optional cleanup (low-cut, FFT denoise, loudness normalization)
+// and pro options: which track (or a mix of all), mono / split L-R into two files, 24-bit, sample rate.
+// Returns the output path (for "split", the left-channel file; the right one sits next to it).
+async function extract(src, opts = {}, outDir, onProgress = () => {}, id) {
+  const { format, loudness, denoise, lowcut, track = 'first', channels = 'keep', depth = '16', rate = 'source' } = opts;
   const kind = kindOf(src);
   if ((kind !== 'video' && kind !== 'audio') || !AUDIO_OUT.includes(format)) throw new Error('UNSUPPORTED');
   if (loudness && !LOUDNESS.includes(Number(loudness))) throw new Error('UNSUPPORTED');
+  for (const [k, re] of Object.entries(EXTRACT_ADV)) if (!re.test(String({ track, channels, depth, rate }[k]))) throw new Error('UNSUPPORTED');
+  const info = await probe(src, { thumb: false });
+  const n = info.audios.length;
+  if (!n) throw new Error('NO_AUDIO');
+  const index = track === 'mix' || track === 'first' ? 0 : Number(track) - 1;
+  if (index >= n) throw new Error('NO_AUDIO');
   const af = [lowcut && 'highpass=f=80', denoise && 'afftdn=nf=-25', loudness && `loudnorm=I=${Number(loudness)}:TP=-1.5:LRA=11`].filter(Boolean);
-  // loudnorm resamples to 192 kHz internally, so pin a standard rate whenever filters run.
-  const args = ['-i', src, '-map', '0:a:0', ...encodeArgs(src, format), ...(af.length ? ['-af', af.join(','), '-ar', '48000'] : [])];
-  try { return await produce(id, outPath(src, outDir, path.parse(src).name, format), [args], onProgress); } catch (e) {
-    throw /matches no streams/.test(e.log || '') ? new Error('NO_AUDIO') : e;
+  const input = track === 'mix' && n > 1 ? `${info.audios.map((_, i) => `[0:a:${i}]`).join('')}amix=inputs=${n}:normalize=0` : `[0:a:${index}]anull`;
+  const codec = format === 'wav' ? ['-c:a', depth === '24' ? 'pcm_s24le' : 'pcm_s16le']
+    : format === 'flac' ? ['-c:a', 'flac', '-compression_level', '8', ...(depth === '24' ? ['-sample_fmt', 's32', '-bits_per_raw_sample', '24'] : [])]
+      : encodeArgs(src, format).filter((a) => a !== '-vn');
+  // loudnorm resamples to 192 kHz internally, so a filtered file always gets a standard rate.
+  const ar = rate !== 'source' ? ['-ar', rate] : af.length ? ['-ar', '48000'] : [];
+  const base = path.parse(src).name;
+  const job = (label, chain, extra = []) => produce(id, outPath(src, outDir, base + label, format),
+    [['-i', src, '-filter_complex', `${input}${chain ? `,${chain}` : ''}${af.length ? `,${af.join(',')}` : ''}[a]`, '-map', '[a]', '-vn', ...codec, ...ar, ...extra, '-map_metadata', '0']],
+    onProgress, info.duration);
+  if (channels === 'split') { // e.g. lav mic on channel 1, camera mic on channel 2
+    const left = await job(' L', 'pan=mono|c0=c0');
+    await job(' R', 'pan=mono|c0=c1');
+    return left;
   }
+  return job('', '', channels === 'mono' ? ['-ac', '1'] : []);
 }
 
-module.exports = { convert, trim, extract, strip, probe, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };
+module.exports = { convert, encode, trim, extract, strip, probe, detectGpu, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };

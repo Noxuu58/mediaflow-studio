@@ -33,10 +33,10 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 | | Tool | What it does |
 | :-- | :-- | :-- |
-| 🔄 | **Converter** | Images `PNG` `JPG` `WebP` · audio `MP3` `WAV` `FLAC` `M4A` · video `MP4` `MKV` `MOV` `WebM`. Video → video is a **lossless remux** whenever possible. Drag & drop, queue, per-file progress and ETA. |
+| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control. |
 | ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. |
 | ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
-| 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. |
+| 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
 
 <div align="center">
 <img src="docs/screenshots/trimmer.png" alt="Trimmer" width="32%">

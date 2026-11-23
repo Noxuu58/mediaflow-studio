@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { convert, trim, extract, strip, probe, kindOf, TARGETS, cancel, killAll } = require('./convert');
+const { convert, encode, trim, extract, strip, probe, detectGpu, kindOf, TARGETS, cancel, killAll } = require('./convert');
 const dl = require('./download');
 
 // Windows taskbar/notification identity; must equal build.appId (the installer stamps it on the shortcuts).
@@ -43,7 +43,11 @@ ipcMain.handle('reveal', (_e, p) => shell.showItemInFolder(p));
 ipcMain.handle('cancel', (_e, id) => cancel(id));
 ipcMain.handle('taskbar', (e, p) => BrowserWindow.fromWebContents(e.sender)?.setProgressBar(p));
 const progress = (e, id) => (p) => e.sender.send('progress', { id, p });
-ipcMain.handle('convert', (e, { id, src, target, outDir }) => convert(src, target, outDir, progress(e, id), id));
+// Targets starting with '@' are presets (engine validates the advanced overrides); others are plain formats.
+ipcMain.handle('convert', (e, { id, src, target, outDir, advanced }) => (String(target).startsWith('@')
+  ? encode(src, target.slice(1), advanced || {}, outDir, progress(e, id), id)
+  : convert(src, target, outDir, progress(e, id), id)));
+ipcMain.handle('gpu', () => detectGpu());
 ipcMain.handle('trim', (e, { id, src, range, outDir }) => trim(src, range, outDir, progress(e, id), id));
 ipcMain.handle('extract', (e, { id, src, options, outDir }) => extract(src, options, outDir, progress(e, id), id));
 ipcMain.handle('strip', (_e, src, duration) => strip(src, duration));
@@ -98,6 +102,6 @@ ipcMain.handle('update-check', () => (canUpdate() ? autoUpdater.checkForUpdates(
 ipcMain.handle('update-download', () => (portable ? shell.openExternal(RELEASES) : autoUpdater.downloadUpdate().catch(() => {})));
 ipcMain.handle('update-install', () => { killAll(); dl.cancel(); autoUpdater.quitAndInstall(true, true); }); // silent install, then relaunch
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => { createWindow(); detectGpu(); }); // GPU test runs once, in the background
 app.on('before-quit', () => { killAll(); dl.cancel(); }); // don't leave orphan ffmpeg / yt-dlp processes running
 app.on('window-all-closed', () => app.quit());

@@ -10,7 +10,11 @@
 //   targets(info) -> ['mp3', ...]                     output formats offered for that file
 //   defaultTarget(item, last) -> 'mp3'                initial choice (last = the format picked most recently)
 //   allowSame                                         also offer the source's own format
-//   options: [{ id, label, type: 'select'|'toggle', choices: [[value, labelKey]], value }]
+//   options: [{ id, label, type: 'select'|'toggle', choices: [[value, labelKey]], value }]   always visible
+//   advanced: [same shape]                            "Advanced" panel, collapsed by default (Pro settings)
+//   presets: [{ id: '@name', icon, kinds: ['video'] }] one-click bar; labels from i18n 'preset.<name>' / 'preset.<name>.sub'
+//   hints(item, probe) -> [{ text, tip, pro }]        small tags on a row (pro ones only show in Advanced mode)
+//   showGpu                                           GPU chip in the action bar
 //   run({ id, src, target, outDir, options }) -> Promise<outputPath>
 // })
 function QueueTool(cfg) {
@@ -21,7 +25,17 @@ function QueueTool(cfg) {
   const items = new Map(); // id -> item
   let root, outDir = App.store.get(key('outDir')), busy = false, cancelled = false, nextId = 0, probeChain = Promise.resolve();
   let run = null; // { total, done, start, current } while the queue runs
-  const opts = Object.fromEntries((cfg.options || []).map((o) => [o.id, App.store.get(key(o.id)) ?? o.value]));
+  const allOptions = [...(cfg.options || []), ...(cfg.advanced || [])];
+  const opts = Object.fromEntries(allOptions.map((o) => [o.id, App.store.get(key(o.id)) ?? o.value]));
+  const isPreset = (x) => x.startsWith('@');
+  const label = (x) => (isPreset(x) ? t(`preset.${x.slice(1)}`) : x);
+  const optionsHtml = (list) => {
+    const presets = list.filter(isPreset), formats = list.filter((x) => !isPreset(x));
+    const opt = (x, sel) => `<option value="${x}"${x === sel ? ' selected' : ''}>${F.esc(label(x))}</option>`;
+    return (sel) => (presets.length
+      ? `<optgroup label="${F.esc(t('q.presets'))}">${presets.map((x) => opt(x, sel)).join('')}</optgroup><optgroup label="${F.esc(t('q.formats'))}">${formats.map((x) => opt(x, sel)).join('')}</optgroup>`
+      : formats.map((x) => opt(x, sel)).join(''));
+  };
   const q = (s) => root.querySelector(s);
   const same = (a, b) => a === b || (a === 'jpeg' && b === 'jpg');
   const eta = (elapsed, p) => (p > 0.02 && elapsed > 1 ? F.clock(elapsed * (1 - p) / p) : null);
@@ -69,12 +83,27 @@ function QueueTool(cfg) {
     q('.clear').disabled = busy || !list.length;
     q('.dest').disabled = busy;
     q('.all').disabled = !list.length;
-    const all = new Set(list.flatMap((it) => it.targets));
-    q('.all').innerHTML = '<option value="">—</option>' + [...all].map((x) => `<option value="${x}">${x}</option>`).join('');
+    const all = [...new Set(list.flatMap((it) => it.targets))];
+    q('.all').innerHTML = '<option value="">—</option>' + optionsHtml(all)('');
     q('.dest-label').textContent = outDir || t('common.outputSource');
     q('.dest').title = outDir || t('common.outputTip');
     q('.dest-reset').hidden = !outDir || busy;
     q('.global').classList.toggle('on', busy);
+    // A preset chip is "on" when every file it applies to uses it.
+    root.querySelectorAll('.preset').forEach((b) => {
+      const fits = list.filter((it) => it.targets.includes(b.dataset.preset));
+      b.classList.toggle('on', fits.length > 0 && fits.every((it) => it.target === b.dataset.preset));
+      b.disabled = !fits.length || busy;
+    });
+  }
+
+  function applyTarget(x) {
+    for (const it of items.values()) {
+      const sel = it.el.querySelector('select');
+      if (it.state !== 'run' && it.state !== 'done' && [...sel.options].some((o) => o.value === x)) {
+        sel.value = x; sel.onchange({ target: sel });
+      }
+    }
   }
 
   function addRow(info) {
@@ -88,12 +117,12 @@ function QueueTool(cfg) {
       <div class="meta">
         <div class="name" title="${F.esc(it.path)}">${F.esc(it.name)}</div>
         <div class="spec">${F.size(it.size)}</div>
+        <div class="tags"></div>
       </div>
       <div class="route">
         <span class="fmt ${it.kind}">${F.ext(it.path)}</span>
         <svg class="route-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
-        <select aria-label="${F.esc(t('q.outFmt', { name: it.name }))}">${offered
-          .map((x) => `<option value="${x}"${x === it.target ? ' selected' : ''}>${x}</option>`).join('')}</select>
+        <select class="${offered.some(isPreset) ? 'wide' : ''}" aria-label="${F.esc(t('q.outFmt', { name: it.name }))}">${optionsHtml(offered)(it.target)}</select>
       </div>
       <div class="state"></div>
       <button class="icon remove" type="button" title="${F.esc(t('q.remove'))}">${I.x}</button>
@@ -119,6 +148,8 @@ function QueueTool(cfg) {
     probeChain = probeChain.then(() => window.api.probe(it.path)).then((p) => {
       el.querySelector('.spec').textContent = spec(it, p);
       if (p.thumb) el.querySelector('.thumb').innerHTML = `<img src="${p.thumb}" alt="">`;
+      el.querySelector('.tags').innerHTML = (cfg.hints?.(it, p) || [])
+        .map((h) => `<span class="tag${h.pro ? ' pro' : ' warn'}" title="${F.esc(h.tip || '')}">${F.esc(h.text)}</span>`).join('');
     }).catch(() => {});
   }
 
@@ -152,7 +183,7 @@ function QueueTool(cfg) {
     overall(p);
   });
 
-  const options = () => Object.fromEntries((cfg.options || []).map((o) => [o.id, o.type === 'toggle' ? opts[o.id] === '1' : opts[o.id]]));
+  const options = () => Object.fromEntries(allOptions.map((o) => [o.id, o.type === 'toggle' ? opts[o.id] === '1' : opts[o.id]]));
 
   async function runAll() {
     if (busy) return;
@@ -198,9 +229,8 @@ function QueueTool(cfg) {
 
   const pick = async () => addFiles(await window.api.pickFiles());
 
-  function renderOptions() {
-    const box = q('.opts');
-    box.innerHTML = (cfg.options || []).map((o) => o.type === 'select'
+  function renderOptions(box, list) {
+    box.innerHTML = list.map((o) => o.type === 'select'
       ? `<label class="opt">${t(o.label)} <select data-opt="${o.id}">${o.choices.map(([v, k]) => `<option value="${v}"${v === opts[o.id] ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label>`
       : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}">${I.check}${t(o.label)}</button>`).join('');
     box.querySelectorAll('select[data-opt]').forEach((s) => s.onchange = () => { opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); });
@@ -228,8 +258,15 @@ function QueueTool(cfg) {
           <button class="ghost sm add" type="button">${I.plus}${t('q.add')}</button>
           <button class="ghost sm clean" type="button">${t('q.cleanDone')}</button>
           <button class="ghost sm clear" type="button">${t('q.clear')}</button>
+          ${cfg.advanced ? `<button class="ghost sm adv-toggle" type="button" aria-expanded="false">${I.sliders}${t('adv.toggle')}</button>` : ''}
         </div>
+        ${cfg.presets ? `<div class="presets">${cfg.presets.map((p) => `
+          <button class="preset" type="button" data-preset="${p.id}" title="${F.esc(t(`preset.${p.id.slice(1)}.sub`))}">
+            <span class="preset-icon ${p.id.slice(1)}">${p.icon}</span>
+            <span class="preset-text"><b>${t(`preset.${p.id.slice(1)}`)}</b><small>${t(`preset.${p.id.slice(1)}.sub`)}</small></span>
+          </button>`).join('')}</div>` : ''}
         ${cfg.options ? '<div class="opts"></div>' : ''}
+        ${cfg.advanced ? `<div class="adv-panel"><div class="adv-head">${I.sliders}<b>${t(cfg.advancedTitle || 'adv.title')}</b>${cfg.showGpu ? '<span class="adv-gpu chip"></span>' : ''}</div><div class="adv-grid"></div></div>` : ''}
         <div class="list" aria-live="polite"></div>
       </div>
       <footer class="actionbar">
@@ -248,21 +285,26 @@ function QueueTool(cfg) {
     q('.stop').onclick = cancel;
     q('.clean').onclick = () => { for (const it of items.values()) if (it.state === 'done') it.el.querySelector('.remove').click(); };
     q('.clear').onclick = () => { items.clear(); q('.list').innerHTML = ''; refresh(); };
-    q('.all').onchange = (e) => {
-      for (const it of items.values()) {
-        const sel = it.el.querySelector('select');
-        if (e.target.value && it.state !== 'run' && it.state !== 'done' && [...sel.options].some((o) => o.value === e.target.value)) {
-          sel.value = e.target.value; sel.onchange({ target: sel });
-        }
-      }
-      e.target.value = '';
-    };
+    q('.all').onchange = (e) => { if (e.target.value) applyTarget(e.target.value); e.target.value = ''; };
+    root.querySelectorAll('.preset').forEach((b) => b.onclick = () => applyTarget(b.dataset.preset));
+    if (cfg.advanced) {
+      const toggle = q('.adv-toggle');
+      const setOpen = (open) => {
+        root.classList.toggle('adv-on', open);
+        toggle.setAttribute('aria-expanded', String(open));
+        App.store.set(key('adv.open'), open ? '1' : '0');
+      };
+      setOpen(App.store.get(key('adv.open')) === '1');
+      toggle.onclick = () => setOpen(!root.classList.contains('adv-on'));
+      renderOptions(q('.adv-grid'), cfg.advanced);
+      if (cfg.showGpu) window.api.gpu().then((g) => { q('.adv-gpu').textContent = g ? t('gpu.on', { v: g.vendor }) : t('gpu.off'); q('.adv-gpu').classList.toggle('ok', Boolean(g)); });
+    }
     q('.dest').onclick = async () => {
       const d = await window.api.pickDir();
       if (d) { outDir = d; App.store.set(key('outDir'), d); refresh(); }
     };
     q('.dest-reset').onclick = () => { outDir = null; App.store.set(key('outDir'), null); refresh(); };
-    if (cfg.options) renderOptions();
+    if (cfg.options) renderOptions(q('.opts'), cfg.options);
     refresh();
   }
 

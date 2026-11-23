@@ -34,6 +34,10 @@ const App = (() => {
     scissors: '<svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.6"/><circle cx="6" cy="17" r="2.6"/><path d="M8.2 8.4 20 17M8.2 15.6 20 7"/></svg>',
     extract: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="11" height="10" rx="2.5"/><path d="m13.5 8.5 3-2v7l-3-2"/><path d="M17 17.5v-4M20 19v-7M14 19v-2"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></svg>',
+    sliders: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+    phone: '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+    screen: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="13" rx="3"/><path d="m10.5 9 4 2.5-4 2.5z" fill="currentColor"/></svg>',
+    layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
     pause: '<svg viewBox="0 0 24 24"><path d="M7 5v14M17 5v14" stroke-width="3.2"/></svg>',
   };
 
@@ -187,7 +191,7 @@ const App = (() => {
 
   // Liquid-glass spotlight: controls light up where the pointer is.
   addEventListener('pointermove', (e) => {
-    const b = e.target.closest?.('.ghost, .primary, .danger, .pill, .hero, .nav-item, .round');
+    const b = e.target.closest?.('.ghost, .primary, .danger, .pill, .hero, .nav-item, .round, .preset');
     if (!b) return;
     const r = b.getBoundingClientRect();
     b.style.setProperty('--mx', `${e.clientX - r.left}px`);
