@@ -1,6 +1,6 @@
 {
   "name": "mediaflow-studio",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MediaFlow Studio — a polished media toolkit for video editors: convert, download, trim and extract audio.",
   "main": "src/main.js",
   "scripts": {
@@ -22,7 +22,7 @@
   },
   "productName": "MediaFlow Studio",
   "build": {
-    "appId": "com.mediaflow.studio",
+    "appId": "com.noxuu58.mediaflowstudio",
     "files": [
       "src/**",
       "build/icon.png",
@@ -56,7 +56,8 @@
       "installerSidebar": "build/installerSidebar.bmp",
       "uninstallerSidebar": "build/installerSidebar.bmp",
       "installerHeader": "build/installerHeader.bmp",
-      "artifactName": "MediaFlow-Studio-Setup.exe"
+      "artifactName": "MediaFlow-Studio-Setup.exe",
+      "guid": "2eb1e763-f464-5b71-b2b0-b29f8b4c1ebd"
     },
     "portable": {
       "artifactName": "MediaFlow-Studio-Portable.exe"

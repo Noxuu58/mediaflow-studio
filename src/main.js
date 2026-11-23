@@ -4,7 +4,11 @@ const fs = require('fs');
 const { convert, trim, extract, strip, probe, kindOf, TARGETS, cancel, killAll } = require('./convert');
 const dl = require('./download');
 
-app.setAppUserModelId('com.mediaflow.studio'); // required for Windows notifications
+// Windows taskbar/notification identity; must equal build.appId (the installer stamps it on the shortcuts).
+// Dev runs (plain electron.exe, Electron logo) get their own ID: if they share the app's ID, Windows ties that ID
+// to the Electron logo and shows it in the taskbar — what happened to v1.0.0 with 'com.mediaflow.studio'.
+const APP_ID = 'com.noxuu58.mediaflowstudio';
+app.setAppUserModelId(app.isPackaged ? APP_ID : `${APP_ID}.dev`);
 nativeTheme.themeSource = 'dark'; // dark acrylic tint and dialogs even when Windows is in light mode
 
 function createWindow() {
