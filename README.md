@@ -46,6 +46,13 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 <br>
 
+<div align="center">
+<img src="docs/screenshots/advanced.png" alt="Advanced mode — ProRes, DNxHR, bit depth, frame rate, audio tracks, GPU" width="90%">
+<br><sub><b>Advanced mode</b> — one click away, never in the way: codecs, bit depth, frame rate, audio tracks, GPU.</sub>
+</div>
+
+<br>
+
 | | Also |
 | :-- | :-- |
 | 🌍 | English & French interface |

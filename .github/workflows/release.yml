@@ -42,13 +42,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          sed "s/{{VERSION}}/$VERSION/g" .github/RELEASE_TEMPLATE.md > notes.md
+          # .github/release-notes/vX.Y.Z.md: first line "# Title", then what's new. The download table is appended.
+          NOTES=".github/release-notes/$GITHUB_REF_NAME.md"
+          TITLE="MediaFlow Studio $VERSION"
+          : > notes.md
+          if [ -f "$NOTES" ]; then
+            FIRST="$(head -n 1 "$NOTES")"
+            if [[ "$FIRST" == "# "* ]]; then TITLE="${FIRST#\# }"; tail -n +2 "$NOTES" >> notes.md; else cat "$NOTES" >> notes.md; fi
+            printf '\n' >> notes.md
+          fi
+          sed "s/{{VERSION}}/$VERSION/g" .github/RELEASE_TEMPLATE.md >> notes.md
           # latest.yml + blockmap are what installed apps read to find and download updates.
           gh release create "$GITHUB_REF_NAME" \
             dist/MediaFlow-Studio-Setup.exe \
             dist/MediaFlow-Studio-Setup.exe.blockmap \
             dist/latest.yml \
             dist/MediaFlow-Studio-Portable.exe \
-            --title "MediaFlow Studio $VERSION" \
-            --notes-file notes.md \
-            --generate-notes
+            --title "$TITLE" \
+            --notes-file notes.md

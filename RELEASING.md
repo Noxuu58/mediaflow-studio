@@ -1,9 +1,26 @@
-# Releasing a new version
+﻿# Releasing a new version
 
 Publishing a version = pushing a **tag**. GitHub Actions does the rest, and every installed copy of
 MediaFlow Studio offers the update on its next launch.
 
-## The 3 commands
+## 1. Write the release notes
+
+Create `.github/release-notes/vX.Y.Z.md` (copy the previous one). The first line is the release title,
+the rest is the "what's new" text; the download table is added automatically:
+
+```markdown
+# MediaFlow Studio 1.2.0 — Short catchy summary
+
+## ✨ What's new
+- **Big feature** — one line on why it matters
+- 🐛 Fixed: what was broken
+
+Already on 1.1.x? The app offers this update automatically — click **Update**, then **Restart & Install**.
+```
+
+Commit it with your changes. (No file? The release still goes out, with a plain title and the download table.)
+
+## 2. The 3 commands
 
 Run them in the project folder, with your changes already committed:
 
@@ -18,7 +35,7 @@ git push --tags            # sends the tag vX.Y.Z → starts the release build
 ## What happens next (≈ 10 minutes)
 
 1. **GitHub Actions** ([`.github/workflows/release.yml`](.github/workflows/release.yml)) runs on Windows: install → tests → build.
-2. It publishes a **GitHub Release** named *MediaFlow Studio X.Y.Z* with:
+2. It publishes a **GitHub Release** with:
 
    | File | Used by |
    | :-- | :-- |
@@ -27,7 +44,7 @@ git push --tags            # sends the tag vX.Y.Z → starts the release build
    | `latest.yml` | the auto-updater (version + checksum it compares against) |
    | `MediaFlow-Studio-Portable.exe` | portable users |
 
-   The text comes from [`.github/RELEASE_TEMPLATE.md`](.github/RELEASE_TEMPLATE.md) plus the list of commits since the last release.
+   The title and text come from your `.github/release-notes/vX.Y.Z.md`, followed by the download table from [`.github/RELEASE_TEMPLATE.md`](.github/RELEASE_TEMPLATE.md).
 3. **Installed apps** check GitHub a few seconds after launch (or via *Check for updates* in the sidebar), show the
    *Update available* banner, download in the background, then *Restart & Install*.
    The portable version shows the banner with a *Download* button instead (it can't replace itself).
