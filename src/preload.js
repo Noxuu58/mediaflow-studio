@@ -15,6 +15,13 @@ contextBridge.exposeInMainWorld('api', {
   taskbar: (p) => ipcRenderer.invoke('taskbar', p),
   onProgress: (cb) => ipcRenderer.on('progress', (_e, d) => cb(d)),
   clipboard: () => ipcRenderer.invoke('clipboard'),
+  version: () => ipcRenderer.invoke('app-version'),
+  update: {
+    check: () => ipcRenderer.invoke('update-check'),
+    download: () => ipcRenderer.invoke('update-download'),
+    install: () => ipcRenderer.invoke('update-install'),
+    onStatus: (cb) => ipcRenderer.on('update', (_e, d) => cb(d)),
+  },
   downloadsDir: () => ipcRenderer.invoke('downloads-dir'),
   dl: {
     version: (bin) => ipcRenderer.invoke('dl-version', bin),

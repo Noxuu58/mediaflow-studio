@@ -15,9 +15,9 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -26,11 +26,13 @@ jobs:
       - run: npm test
       - run: npm run dist   # also downloads and checksum-verifies yt-dlp.exe
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: MediaFlow-Studio
           path: |
             dist/MediaFlow-Studio-Setup.exe
+            dist/MediaFlow-Studio-Setup.exe.blockmap
+            dist/latest.yml
             dist/MediaFlow-Studio-Portable.exe
 
       - name: Publish release
@@ -41,8 +43,11 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           sed "s/{{VERSION}}/$VERSION/g" .github/RELEASE_TEMPLATE.md > notes.md
+          # latest.yml + blockmap are what installed apps read to find and download updates.
           gh release create "$GITHUB_REF_NAME" \
             dist/MediaFlow-Studio-Setup.exe \
+            dist/MediaFlow-Studio-Setup.exe.blockmap \
+            dist/latest.yml \
             dist/MediaFlow-Studio-Portable.exe \
             --title "MediaFlow Studio $VERSION" \
             --notes-file notes.md \

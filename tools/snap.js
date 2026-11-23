@@ -54,7 +54,22 @@ if (mode === 'installer-art') {
     const rows = () => js(`[...document.querySelectorAll('.tool:not([hidden]) .row')].map((r) => r.className + ' | ' + r.querySelector('.spec').textContent).join('\\n')`);
     const reload = async () => { const done = new Promise((r) => w.webContents.once('did-finish-load', r)); w.webContents.reload(); await done; await wait(700); };
     try {
-      if (mode === 'tour') {
+      if (mode === 'update') {
+        // Feeds the update banner every state the updater can send, without a real release.
+        const states = [
+          ['1-available', { state: 'available', version: '1.1.0' }],
+          ['2-downloading', { state: 'downloading', percent: 46.3, speed: 8.4e6 }],
+          ['3-ready', { state: 'ready', version: '1.1.0' }],
+          ['4-portable', { state: 'available', version: '1.1.0', portable: true }],
+          ['5-error', { state: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' }],
+        ];
+        await wait(5000); // let the real startup check (dev: no-op) pass first
+        for (const [name, d] of states) {
+          if (d.state === 'error') await js(`document.querySelector('#updates').click()`); // errors only show after a manual check
+          w.webContents.send('update', d); await wait(900); await save(name);
+          console.log(name, '→', await js(`document.querySelector('#update').dataset.state + ' | ' + document.querySelector('#update').innerText.replace(/\\s+/g, ' ')`));
+        }
+      } else if (mode === 'tour') {
         await js(`localStorage.setItem('lang', ${JSON.stringify(args[0])})`);
         await reload();
         for (const id of ['convert', 'download', 'trim', 'extract']) {

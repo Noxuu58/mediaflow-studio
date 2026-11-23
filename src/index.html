@@ -19,6 +19,10 @@
       <span class="nav-glider" aria-hidden="true"></span>
     </nav>
     <div class="side-foot">
+      <button id="updates" class="nav-item" type="button">
+        <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6L20 8.7M20 4v4.7h-4.7"/><path d="M12 8v4.5l3 1.8"/></svg><i class="up-dot"></i></span>
+        <span class="nav-text" data-i18n="up.check"></span>
+      </button>
       <button id="lang" class="nav-item" type="button" data-i18n-title="app.langTip">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg></span>
         <span class="nav-text" id="lang-label"></span>
@@ -52,6 +56,12 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
+  <div id="update" class="update" role="status" hidden>
+    <span class="up-icon"><svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg></span>
+    <div class="up-body"><b class="up-title"></b><span class="up-sub"></span><div class="bar"><i></i></div></div>
+    <button class="primary up-action" type="button"></button>
+    <button class="icon up-close" type="button" data-i18n-title="up.later"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
 
   <!-- Load order: i18n → sounds → shell → shared queue component → tools (sidebar order = script order). -->
   <script src="i18n.js"></script>

@@ -20,7 +20,7 @@ test('every entry renders without leftover placeholders', () => {
     const I = load(lang);
     assert.strictEqual(I.lang, lang);
     for (const key of Object.keys(I.dict.en)) {
-      const out = I.t(key, { n: 2, ok: 2, ko: 1, i: 1, left: '0:10', name: 'a.mp4', time: '1 s', t: '0:05', title: 'x', bits: 16, cmd: 'winget' });
+      const out = I.t(key, { n: 2, ok: 2, ko: 1, i: 1, left: '0:10', name: 'a.mp4', time: '1 s', t: '0:05', title: 'x', bits: 16, cmd: 'winget', v: '1.2.3' });
       assert.ok(out && !/\{\w+\}/.test(out) && !out.includes('undefined'), `${lang} ${key}: ${out}`);
     }
   }

@@ -69,9 +69,11 @@ Double-click the file, click **Install**, done. FFmpeg and yt-dlp are built in �
 
 > **Windows protected your PC?** The app isn't code-signed yet, so SmartScreen may warn on first launch. Click **More info → Run anyway**.
 
-**3. Keep the Downloader fresh**
+**3. Stay up to date — automatically**
 
-Sites change often. If a link stops working, click **Update** at the bottom of the Downloader: it updates the built-in yt-dlp in a few seconds.
+When a new version is out, the app shows an *Update available* banner: one click downloads it in the background, a second one restarts on the new version. You can also click **Check for updates** in the sidebar.
+
+Sites change often: if a link stops working, click **Update** at the bottom of the Downloader to refresh the built-in yt-dlp.
 
 **Uninstall** from *Settings → Apps → MediaFlow Studio*, like any other app.
 
@@ -116,13 +118,13 @@ If `npm` blocked Electron's install script, run `node node_modules/electron/inst
 <br>
 
 ```powershell
-npm version minor          # 1.0.0 → 1.1.0: updates package.json, commits, tags v1.1.0
-git push --follow-tags     # the tag triggers .github/workflows/release.yml
+npm version patch          # 1.0.0 → 1.0.1
+git push
+git push --tags            # the tag starts .github/workflows/release.yml
 ```
 
-GitHub Actions then tests and builds on Windows and publishes the release with both `.exe` files, using
-[`.github/RELEASE_TEMPLATE.md`](.github/RELEASE_TEMPLATE.md) plus auto-generated release notes.
-The download links in this README always point to the latest release.
+GitHub Actions tests, builds and publishes the release; installed apps then offer the update automatically.
+Full guide: **[RELEASING.md](RELEASING.md)**.
 
 </details>
 

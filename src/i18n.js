@@ -58,6 +58,13 @@ const I18n = (() => {
       'dl.update': 'Update', 'dl.updating': 'Updating yt-dlp…', 'dl.missing': 'yt-dlp not found',
       'dl.missingSub': 'Install it with {cmd} and retry, or point to yt-dlp.exe.', 'dl.pick': 'Choose yt-dlp.exe…', 'dl.removeTip': 'Remove from list',
 
+      'up.check': 'Check for updates', 'up.checking': 'Checking for updates…', 'up.latest': "You're up to date (v{v})",
+      'up.dev': 'Updates are checked in the installed app', 'up.available': 'Update available — v{v}',
+      'up.availableSub': 'New features and fixes are ready.', 'up.availablePortable': 'Get the new portable version from GitHub.',
+      'up.get': 'Update', 'up.download': 'Download', 'up.downloading': 'Downloading the update…',
+      'up.ready': 'v{v} is ready', 'up.readySub': 'Restart to finish installing.', 'up.restart': 'Restart & Install',
+      'up.error': "Couldn't update", 'up.busy': 'Finish running jobs before restarting', 'up.later': 'Later',
+
       'err.CANCELLED': 'Cancelled', 'err.UNSUPPORTED': 'Unsupported format', 'err.BAD_RANGE': 'The out point must be after the in point',
       'err.NO_AUDIO': 'This file has no audio track', 'err.UNREADABLE': 'Unreadable link',
       'err.PLAYLIST': 'This link is a playlist ({n} items): paste a single video link',
@@ -116,6 +123,13 @@ const I18n = (() => {
       'dl.list': 'Téléchargements', 'dl.dest': 'Téléchargements', 'dl.destTip': 'Dossier Téléchargements de Windows', 'dl.destReset': 'Revenir au dossier Téléchargements',
       'dl.update': 'Mettre à jour', 'dl.updating': 'Mise à jour de yt-dlp…', 'dl.missing': 'yt-dlp introuvable',
       'dl.missingSub': 'Installez-le avec {cmd} puis réessayez, ou indiquez où se trouve yt-dlp.exe.', 'dl.pick': 'Choisir yt-dlp.exe…', 'dl.removeTip': 'Retirer de la liste',
+
+      'up.check': 'Rechercher des mises à jour', 'up.checking': 'Recherche de mises à jour…', 'up.latest': 'Vous êtes à jour (v{v})',
+      'up.dev': "Les mises à jour sont vérifiées dans l'app installée", 'up.available': 'Mise à jour disponible — v{v}',
+      'up.availableSub': 'De nouvelles fonctions et corrections sont prêtes.', 'up.availablePortable': 'Téléchargez la nouvelle version portable sur GitHub.',
+      'up.get': 'Mettre à jour', 'up.download': 'Télécharger', 'up.downloading': 'Téléchargement de la mise à jour…',
+      'up.ready': 'La v{v} est prête', 'up.readySub': 'Redémarrez pour terminer l’installation.', 'up.restart': 'Redémarrer et installer',
+      'up.error': 'Mise à jour impossible', 'up.busy': 'Terminez les tâches en cours avant de redémarrer', 'up.later': 'Plus tard',
 
       'err.CANCELLED': 'Annulé', 'err.UNSUPPORTED': 'Format non pris en charge', 'err.BAD_RANGE': "La sortie doit être après l'entrée",
       'err.NO_AUDIO': "Ce fichier n'a pas de piste audio", 'err.UNREADABLE': 'Lien illisible',

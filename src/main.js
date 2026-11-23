@@ -72,6 +72,28 @@ ipcMain.handle('dl-cancel', (_e, id) => dl.cancel(id));
 ipcMain.handle('dl-start', (e, { id, url, fmt, quality, outDir }) =>
   dl.download(id, url, { fmt, quality, outDir }, (p) => e.sender.send('dl-progress', { id, ...p })));
 
+// ---- Auto-update from GitHub Releases (build.publish in package.json; release assets latest.yml + blockmap).
+// The installed app downloads in the background and installs on restart. The portable build cannot replace
+// itself, so it only announces the new version and opens the download page.
+const { autoUpdater } = require('electron-updater');
+const RELEASES = 'https://github.com/Noxuu58/mediaflow-studio/releases/latest';
+const portable = Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
+const sendUpdate = (state, extra = {}) => BrowserWindow.getAllWindows()[0]?.webContents.send('update', { state, portable, ...extra });
+autoUpdater.autoDownload = false; // the user clicks "Update" first
+autoUpdater.autoInstallOnAppQuit = true; // downloaded but not restarted yet → installs when the app closes
+// Local end-to-end tests only: point the updater at a folder served over HTTP instead of GitHub.
+if (process.env.MEDIAFLOW_UPDATE_FEED) autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MEDIAFLOW_UPDATE_FEED });
+autoUpdater.on('update-available', (i) => sendUpdate('available', { version: i.version }));
+autoUpdater.on('update-not-available', () => sendUpdate('latest', { version: app.getVersion() }));
+autoUpdater.on('download-progress', (p) => sendUpdate('downloading', { percent: p.percent, speed: p.bytesPerSecond }));
+autoUpdater.on('update-downloaded', (i) => sendUpdate('ready', { version: i.version }));
+autoUpdater.on('error', (e) => sendUpdate('error', { message: String(e?.message || e).split('\n')[0] }));
+const canUpdate = () => app.isPackaged || Boolean(process.env.MEDIAFLOW_UPDATE_FEED);
+ipcMain.handle('app-version', () => app.getVersion());
+ipcMain.handle('update-check', () => (canUpdate() ? autoUpdater.checkForUpdates().catch(() => {}) : sendUpdate('dev', { version: app.getVersion() })));
+ipcMain.handle('update-download', () => (portable ? shell.openExternal(RELEASES) : autoUpdater.downloadUpdate().catch(() => {})));
+ipcMain.handle('update-install', () => { killAll(); dl.cancel(); autoUpdater.quitAndInstall(true, true); }); // silent install, then relaunch
+
 app.whenReady().then(createWindow);
 app.on('before-quit', () => { killAll(); dl.cancel(); }); // don't leave orphan ffmpeg / yt-dlp processes running
 app.on('window-all-closed', () => app.quit());

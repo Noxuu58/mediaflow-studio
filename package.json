@@ -4,7 +4,7 @@
   "description": "MediaFlow Studio — a polished media toolkit for video editors: convert, download, trim and extract audio.",
   "main": "src/main.js",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "start": "electron .",
     "fetch-ytdlp": "node scripts/fetch-ytdlp.js",
     "dist": "node scripts/fetch-ytdlp.js && electron-builder --win --publish never"
@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "ffmpeg-static": "^5.3.0"
   },
   "devDependencies": {
@@ -62,7 +63,14 @@
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Noxuu58",
+        "repo": "mediaflow-studio"
+      }
+    ]
   },
   "keywords": [
     "ffmpeg",

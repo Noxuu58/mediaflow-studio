@@ -110,6 +110,49 @@ const App = (() => {
     setTimeout(() => location.reload(), 220);
   }
 
+  // ---- Auto-update banner (events come from electron-updater in main.js) -------------------------
+  let manualCheck = false;
+  const busy = () => tools.some((x) => x.isBusy?.());
+  function banner(state, { title, sub = '', action = '', onAction, progress = 0 }) {
+    const box = $('#update');
+    if (box.hidden) { box.hidden = false; replay(box, 'enter'); }
+    box.dataset.state = state;
+    box.querySelector('.up-icon').innerHTML = state === 'ready' ? icons.check : state === 'error' ? icons.warn : icons.download;
+    box.querySelector('.up-title').textContent = title;
+    box.querySelector('.up-sub').textContent = sub;
+    const btn = box.querySelector('.up-action');
+    btn.hidden = !action;
+    btn.textContent = action;
+    btn.onclick = onAction;
+    box.querySelector('.bar i').style.width = `${progress}%`;
+  }
+  function checkUpdates(manual) {
+    manualCheck = manual;
+    if (manual) toast(t('up.checking'));
+    window.api.update.check();
+  }
+  function onUpdate(d) {
+    $('#updates').classList.toggle('has-update', ['available', 'downloading', 'ready'].includes(d.state));
+    const manual = manualCheck;
+    manualCheck = false;
+    if (d.state === 'latest' || d.state === 'dev') { if (manual) toast(t(`up.${d.state}`, { v: d.version })); return; }
+    if (d.state === 'available') {
+      banner('available', { title: t('up.available', { v: d.version }), sub: t(d.portable ? 'up.availablePortable' : 'up.availableSub'),
+        action: t(d.portable ? 'up.download' : 'up.get'), onAction: () => window.api.update.download() });
+      sfx('pop');
+    } else if (d.state === 'downloading') {
+      banner('downloading', { title: t('up.downloading'), sub: `${Math.round(d.percent)} % · ${fmt.speed(d.speed)}`, progress: d.percent });
+    } else if (d.state === 'ready') {
+      banner('ready', { title: t('up.ready', { v: d.version }), sub: t('up.readySub'), action: t('up.restart'),
+        onAction: () => (busy() ? toast(t('up.busy'), true) : window.api.update.install()) });
+      sfx('success');
+      notify(t('up.ready', { v: d.version }), t('up.readySub'));
+    } else if (d.state === 'error' && (manual || $('#update').dataset.state === 'downloading')) {
+      banner('error', { title: t('up.error'), sub: d.message, action: t('common.retry'), onAction: () => checkUpdates(true) });
+      sfx('error');
+    } // a silent startup check that fails (offline…) stays silent
+  }
+
   function start() {
     I18n.apply(document);
     $('#nav').setAttribute('aria-label', t('app.tools'));
@@ -126,6 +169,11 @@ const App = (() => {
     $('#collapse').onclick = () => store.set('collapsed', document.body.classList.toggle('collapsed') ? '1' : '0');
     $('#sound').onclick = () => { setMuted(!muted); if (!muted) sfx('toggle'); };
     setMuted(muted);
+    window.api.update.onStatus(onUpdate);
+    $('#updates').onclick = () => checkUpdates(true);
+    $('.up-close').onclick = () => { $('#update').hidden = true; }; // a download keeps going in the background
+    window.api.version().then((v) => { $('#updates').title = `${t('up.check')} · v${v}`; });
+    setTimeout(() => checkUpdates(false), 4000); // quietly, once the window has settled
     show(store.get('tool'));
     requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready')));
   }
@@ -134,7 +182,7 @@ const App = (() => {
   addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b || b.disabled || b.id === 'sound') return;
-    sfx(b.matches('.seg button, .pill, .nav-item') ? 'toggle' : 'tap');
+    sfx(b.matches('.seg button, .pill, .nav-item, .up-close') ? 'toggle' : 'tap');
   }, true);
 
   // Liquid-glass spotlight: controls light up where the pointer is.
