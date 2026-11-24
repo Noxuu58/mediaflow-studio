@@ -316,6 +316,7 @@ function QueueTool(cfg) {
     };
     q('.dest-reset').onclick = () => { outDir = null; App.store.set(key('outDir'), null); refresh(); };
     if (cfg.options) renderOptions(q('.opts'), cfg.options);
+    cfg.onMount?.(root);
     refresh();
   }
 

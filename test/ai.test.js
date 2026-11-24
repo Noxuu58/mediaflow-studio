@@ -60,6 +60,15 @@ test('AI on the GPU', async (t) => {
     assert.strictEqual(down.video.fps, 24);
   });
 
+  await t.test('AI Enhance tool modes: Upscaling and Interpolation presets', async () => {
+    const up = await encode(s('small15.mp4'), 'upscale', { aiHeight: '720', aiModel: 'fast' }, out);
+    assert.match(path.basename(up), /^small15 Upscaled\.mp4$/);
+    assert.strictEqual((await probe(up)).video.height, 720);
+    const mid = await encode(s('small15.mp4'), 'interpolate', { aiFps: '30' }, out);
+    assert.match(path.basename(mid), /^small15 Interpolated\.mp4$/);
+    assert.deepStrictEqual([(await probe(mid)).video.fps, (await probe(mid)).video.height], [30, 120]); // resolution untouched
+  });
+
   await t.test('cancel stops the AI stage and cleans its temp folder', async () => {
     ff('-f', 'lavfi', '-i', 'testsrc2=d=20:s=320x240:r=30', '-c:v', 'libx264', s('long.mp4'));
     const before = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-ai-')).length;

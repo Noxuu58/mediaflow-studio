@@ -286,7 +286,7 @@ option { background: #2c2c2e; }
 .row.run .bar i::after, .global.on .bar i::after { opacity: 1; }
 
 /* ---------------------------------------------------------------- Converter: hero (empty state) */
-.tool-convert, .tool-download, .tool-extract, .tool-trim { padding: 0 26px 0 22px; }
+.tool-convert, .tool-download, .tool-extract, .tool-trim, .tool-enhance { padding: 0 26px 0 22px; }
 /* Drop zone: subtle dashed outline. A file dragged over it (body.drop-zone, set by app.js) lights it up
    in electric blue with a tinted fill and a 1% grow. */
 .hero {
@@ -639,6 +639,9 @@ optgroup { background: #232327; color: var(--text-3); font-style: normal; }
   background: linear-gradient(90deg, #d6a8ff, #7fdcff); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .adv-section span:not(.chip) { flex: 1; min-width: 200px; }
+.opts .adv-section { flex-basis: 100%; margin-top: 0; padding-top: 0; border-top: 0; } /* AI Enhance: status line above its options */
+.preset-icon.upscale { background: linear-gradient(150deg, #7fdcff, #5e5ce6); }
+.preset-icon.interpolate { background: linear-gradient(150deg, #e3a6ff, #bf5af2 55%, #ff375f); }
 .ai-status.ok { color: #d6a8ff; background: rgba(191,90,242,0.12); box-shadow: inset 0 0 0 0.5px rgba(191,90,242,0.5); }
 .ai-status.off { color: var(--text-3); }
 .adv-grid select:disabled { opacity: 0.4; }

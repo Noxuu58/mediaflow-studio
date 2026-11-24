@@ -244,6 +244,9 @@ const PRESETS = {
   youtube: { codec: 'h264', speed: 'quality', container: 'mp4', fps: 'fix', depth: 'auto', height: null, audio: 'aac320', tracks: 'first', suffix: ' YouTube' },
   proxy: { codec: 'prores_proxy', container: 'mov', fps: 'fix', depth: 'auto', height: 1080, audio: 'pcm16', tracks: 'all', suffix: ' Proxy' },
   audio: { codec: 'none', container: 'wav', audio: 'pcm24', tracks: 'first', suffix: '' },
+  // AI Enhance tool: same high-quality delivery as "Clean export"; the AI target comes from aiHeight / aiFps.
+  upscale: { codec: 'h264', speed: 'quality', container: 'mp4', fps: null, depth: 'auto', height: null, audio: 'aac320', tracks: 'all', suffix: ' Upscaled' },
+  interpolate: { codec: 'h264', speed: 'quality', container: 'mp4', fps: null, depth: 'auto', height: null, audio: 'aac320', tracks: 'all', suffix: ' Interpolated' },
 };
 const ADVANCED = {
   codec: ['auto', 'h264', 'hevc', 'prores_proxy', 'prores_lt', 'prores', 'prores_hq', 'dnxhr_lb', 'dnxhr_sq', 'dnxhr_hq', 'dnxhr_hqx'],

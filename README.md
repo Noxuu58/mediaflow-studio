@@ -33,15 +33,21 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 | | Tool | What it does |
 | :-- | :-- | :-- |
-| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control — plus **AI Video Enhancement**: Real-ESRGAN upscaling (up to 4K) and RIFE frame interpolation (up to 60 fps), running locally on your GPU. |
+| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control. |
 | ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. |
 | ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
 | 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
+| 🪄 | **AI Enhance** | Two modes, 100% local on your graphics card: **Upscaling** with Real-ESRGAN (720p → 4K) and **Interpolation** with RIFE (smooth motion up to 60 fps). Lower targets are a classic downscale / frame drop. |
 
 <div align="center">
 <img src="docs/screenshots/trimmer.png" alt="Trimmer" width="32%">
 <img src="docs/screenshots/downloader.png" alt="Downloader" width="32%">
 <img src="docs/screenshots/audio-extractor.png" alt="Audio Extractor" width="32%">
+</div>
+
+<div align="center">
+<img src="docs/screenshots/ai-enhance.png" alt="AI Enhance — Upscaling and Interpolation on your GPU" width="90%">
+<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling and RIFE interpolation, running locally on your GPU.</sub>
 </div>
 
 <br>

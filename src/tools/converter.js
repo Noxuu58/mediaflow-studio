@@ -49,24 +49,7 @@
       sel('audio', 'adv.audio', [['aac192', 'AAC 192 kb/s'], ['aac320', 'AAC 320 kb/s'], ['pcm16', 'adv.pcm16'], ['pcm24', 'adv.pcm24'], ['copy', 'adv.copy']]),
       sel('tracks', 'adv.tracks', [['first', 'adv.tracks.first'], ['all', 'adv.tracks.all'], ['mix', 'adv.tracks.mix']]),
       sel('gpu', 'adv.gpu', [['on', 'adv.on'], ['off', 'adv.gpu.off']]),
-      // AI Video Enhancement: higher than the source = AI (Real-ESRGAN / RIFE on the GPU), lower = classic downscale.
-      { section: 'adv.ai.title', sub: 'adv.ai.sub', icon: 'sparkles', status: 'ai-status' },
-      { id: 'aiHeight', label: 'adv.ai.res', type: 'select', value: 'auto',
-        choices: [['auto', 'adv.ai.off'], ['720', '720p (HD)'], ['1080', '1080p (Full HD)'], ['1440', '1440p (2K)'], ['2160', '2160p (4K)']] },
-      { id: 'aiFps', label: 'adv.ai.fps', type: 'select', value: 'auto',
-        choices: [['auto', 'adv.ai.off'], ['24', '24'], ['25', '25'], ['30', '30'], ['50', '50'], ['60', '60']] },
-      { id: 'aiModel', label: 'adv.ai.model', type: 'select', value: 'auto', choices: [['auto', 'adv.ai.fast'], ['quality', 'adv.ai.quality']] },
-    ],
-    // The AI engines are tested on first open of the panel (≈1 s), then the GPU name is shown.
-    onAdvancedMount(grid) {
-      const chip = grid.querySelector('.ai-status');
-      chip.textContent = t('ai.checking');
-      window.api.aiInfo().then((a) => {
-        chip.textContent = a.available ? t('ai.ready', { v: a.gpu || 'Vulkan' }) : t('ai.none');
-        chip.classList.add(a.available ? 'ok' : 'off');
-        grid.querySelectorAll('[data-opt^="ai"]').forEach((s) => { s.disabled = !a.available; });
-      });
-    },
+    ], // AI upscaling / interpolation has its own tool: tools/enhancer.js
     run: ({ id, src, target, outDir, options }) => window.api.convert({ id, src, target, outDir, advanced: options }),
   });
 })();
