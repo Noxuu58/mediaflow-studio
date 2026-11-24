@@ -33,6 +33,18 @@
   --font-display: "SF Pro Display", -apple-system, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   --side-w: 236px;
 }
+/* Asian languages: Latin stays in Segoe UI, CJK glyphs come from the Windows font made for each language
+   (YaHei for Simplified Chinese, Yu Gothic for Japanese, Malgun Gothic for Korean). No negative tracking on CJK. */
+:root:lang(zh) { --cjk: "Microsoft YaHei UI", "Microsoft YaHei"; }
+:root:lang(ja) { --cjk: "Yu Gothic UI", "Meiryo UI", "Meiryo"; }
+:root:lang(ko) { --cjk: "Malgun Gothic"; }
+:root:is(:lang(zh), :lang(ja), :lang(ko)) {
+  --font: "Segoe UI Variable Text", "Segoe UI", var(--cjk), system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", var(--cjk), system-ui, sans-serif;
+}
+:root:is(:lang(zh), :lang(ja), :lang(ko)) * { letter-spacing: 0 !important; }
+/* Long labels (German…) never wrap or push the sidebar: they end with … and keep their tooltip. */
+.nav-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 * { box-sizing: border-box; margin: 0; }
 html, body { height: 100%; }
 body {

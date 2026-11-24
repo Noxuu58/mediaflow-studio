@@ -69,7 +69,7 @@ Install it in two clicks: everything is included, nothing else to set up.
 | ⚙️ | **Settings** (<kbd>Ctrl</kbd> + <kbd>,</kbd>) — language, sounds, the graphics card for AI, the video encoder (NVENC / Quick Sync / AMF / CPU), your Vulkan version, keep the PC awake during long jobs |
 | 🧯 | Closing the window while a job runs asks first — no export lost by accident |
 | 🩺 | Clear messages when a graphics card can't run the AI — with a link to the right driver |
-| 🌍 | English & French interface (switch in Settings) |
+| 🌍 | 9 languages — English, Français, Español, Deutsch, Português, Italiano, 简体中文, 日本語, 한국어 (switch in Settings) |
 | 🔔 | Windows notifications + taskbar progress |
 | 🔊 | Soft UI sounds (mute them in Settings) |
 | 🛡️ | Never overwrites a file — `name (1).mp4` |
@@ -164,7 +164,8 @@ src/
   main.js           Electron main process
   convert.js        FFmpeg engine — convert, trim, extract, preview strip
   download.js       yt-dlp engine (uses Electron's built-in Node for YouTube)
-  i18n.js           translations (en, fr)
+  i18n.js           translation engine (picks the language, fills {placeholders}, plurals)
+  locales/          one file per language: en · fr · es · de · pt · it · zh · ja · ko
   sfx.js            UI sounds, synthesized (no audio files)
   app.js            sidebar, navigation, drag & drop, shared helpers
   settings.js       Settings panel (language, sounds, graphics card, encoder, Vulkan, keep awake)
@@ -179,7 +180,7 @@ test/               node:test suites
 ```
 
 **Add a tool** — a new file in `src/tools/` calling `App.register({...})` + one `<script>` line in `index.html`.
-**Add a language** — copy the `en` block in `src/i18n.js` and translate it.
+**Add a language** — copy `src/locales/en.js`, translate it, add its `<script>` line in `index.html` and its code to `ORDER` in `src/i18n.js`. `npm test` checks that no key is missing.
 
 </details>
 

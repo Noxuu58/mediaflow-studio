@@ -1,6 +1,6 @@
 {
   "name": "mediaflow-studio",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "MediaFlow Studio — a polished media toolkit for video editors: convert, download, trim and extract audio.",
   "main": "src/main.js",
   "scripts": {

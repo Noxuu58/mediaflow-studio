@@ -30,11 +30,10 @@ function createWindow() {
   // Closing in the middle of an export / AI job / download would throw the work away: ask first.
   win.on('close', (e) => {
     if (!running) return;
-    const fr = uiLang === 'fr';
+    const L = quitText();
     const choice = dialog.showMessageBoxSync(win, {
-      type: 'warning', buttons: fr ? ['Quitter quand même', 'Continuer'] : ['Quit anyway', 'Keep working'], defaultId: 1, cancelId: 1, noLink: true,
-      title: 'MediaFlow Studio', message: fr ? 'Des tâches sont en cours.' : 'Jobs are still running.',
-      detail: fr ? 'Si vous quittez maintenant, elles seront arrêtées et les fichiers en cours ne seront pas terminés.' : 'If you quit now they stop, and the files being made are not finished.',
+      type: 'warning', buttons: [L['quit.quit'], L['quit.stay']], defaultId: 1, cancelId: 1, noLink: true,
+      title: 'MediaFlow Studio', message: L['quit.message'], detail: L['quit.detail'],
     });
     if (choice !== 0) e.preventDefault();
   });
@@ -108,6 +107,12 @@ function awake(job) { // no sleep / suspend while any job runs (the screen may s
   });
 }
 let uiLang = 'en';
+// The quit dialog is shown by the main process, in the language chosen in the window (same files as the UI).
+function quitText() {
+  const file = (code) => path.join(__dirname, 'locales', `${path.basename(code)}.js`);
+  for (const code of new Set([uiLang, 'en'])) if (fs.existsSync(file(code))) require(file(code));
+  return { ...globalThis.MF_LOCALES.en.strings, ...globalThis.MF_LOCALES[uiLang]?.strings };
+}
 ipcMain.handle('prefs', (_e, p = {}) => { setEncoder(p.encoder); ai.setGpu(p.aiGpu); keepAwake = p.keepAwake !== false; uiLang = p.lang || uiLang; });
 // Everything the Settings panel shows: working encoders, Vulkan GPUs + versions, the graphics vendors present.
 ipcMain.handle('hardware', async (_e, fresh) => {
