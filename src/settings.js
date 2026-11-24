@@ -1,4 +1,4 @@
-// Settings panel (sidebar ⚙ or Ctrl+,): AI graphics card, video encoder, Vulkan version, keep the PC awake.
+// Settings panel (sidebar ⚙ or Ctrl+,): language, sounds, AI graphics card, video encoder, Vulkan version, keep awake.
 // Choices are stored by App (localStorage) and applied in the main process through App.setPref.
 const Settings = (() => {
   const { t } = I18n;
@@ -13,9 +13,16 @@ const Settings = (() => {
     el.className = 'modal';
     el.hidden = true;
     el.innerHTML = `
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="set-title">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="set-title" tabindex="-1">
         <header class="modal-head"><h2 id="set-title">${t('set.title')}</h2>
           <button class="icon set-close" type="button" title="${esc(t('common.close'))}">${App.icons.x}</button></header>
+        <section class="set-group">
+          <h3>${t('set.ui')}</h3>
+          <label class="set-row"><span><b>${t('app.langTip')}</b><small>${t('set.langSub')}</small></span><select id="set-lang">
+            ${Object.entries(I18n.LANGS).map(([k, v]) => `<option value="${k}"${k === I18n.lang ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+          <div class="set-row"><span><b>${t('app.sounds')}</b><small>${t('app.soundsTip')}</small></span>
+            <button class="switch" id="set-sound" type="button" role="switch" aria-label="${esc(t('app.sounds'))}"><i></i></button></div>
+        </section>
         <section class="set-group">
           <h3>${t('set.gpu')}</h3>
           <label class="set-row"><span><b>${t('set.aiGpu')}</b><small>${t('set.aiGpuSub')}</small></span><select id="set-aigpu"></select></label>
@@ -38,11 +45,16 @@ const Settings = (() => {
     $('#set-encoder').onchange = (e) => App.setPref('pref.encoder', e.target.value);
     $('#set-test').onclick = () => testAi(true);
     $('#set-rescan').onclick = () => load(true);
-    $('#set-awake').onclick = () => { const on = !App.prefs().keepAwake; App.setPref('pref.awake', on ? '1' : '0'); awakeSwitch(); };
+    $('#set-lang').onchange = (e) => { if (!App.setLang(e.target.value)) e.target.value = I18n.lang; };
+    $('#set-sound').onclick = () => { App.setMuted(!App.muted); if (!App.muted) App.sfx('toggle'); switches(); };
+    $('#set-awake').onclick = () => { const on = !App.prefs().keepAwake; App.setPref('pref.awake', on ? '1' : '0'); switches(); };
     window.api.version().then((v) => { $('#set-version').textContent = t('set.version', { v: `v${v}` }); });
   }
 
-  const awakeSwitch = () => $('#set-awake').setAttribute('aria-checked', String(App.prefs().keepAwake));
+  const switches = () => {
+    $('#set-awake').setAttribute('aria-checked', String(App.prefs().keepAwake));
+    $('#set-sound').setAttribute('aria-checked', String(!App.muted));
+  };
 
   // Hardware list (cached in the main process; fresh = re-scan) → the two selects and the Vulkan chip.
   async function load(fresh = false) {
@@ -105,9 +117,9 @@ const Settings = (() => {
     lastFocus = document.activeElement;
     el.hidden = false;
     document.body.classList.add('modal-open');
-    awakeSwitch();
+    switches();
     load(false);
-    el.querySelector('.set-close').focus();
+    el.querySelector('.modal-card').focus(); // focus inside the dialog without a ring on the close button
   }
   function close() {
     if (!el || el.hidden) return;

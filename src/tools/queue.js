@@ -132,6 +132,7 @@ function QueueTool(cfg) {
       it.target = e.target.value;
       App.store.set(key('last'), it.target);
       if (it.state !== 'run') waiting(it);
+      tags(it);
       refresh();
     };
     el.querySelector('.remove').onclick = () => {
@@ -148,9 +149,16 @@ function QueueTool(cfg) {
     probeChain = probeChain.then(() => window.api.probe(it.path)).then((p) => {
       el.querySelector('.spec').textContent = spec(it, p);
       if (p.thumb) el.querySelector('.thumb').innerHTML = `<img src="${p.thumb}" alt="">`;
-      el.querySelector('.tags').innerHTML = (cfg.hints?.(it, p) || [])
-        .map((h) => `<span class="tag${h.pro ? ' pro' : ' warn'}" title="${F.esc(h.tip || '')}">${F.esc(h.text)}</span>`).join('');
+      it.probe = p;
+      tags(it);
     }).catch(() => {});
+  }
+
+  // Hint tags under the file name (VFR, HDR, output size…); redrawn when an option they depend on changes.
+  function tags(it) {
+    if (!it.probe) return;
+    it.el.querySelector('.tags').innerHTML = (cfg.hints?.(it, it.probe, options()) || [])
+      .map((h) => `<span class="tag${h.pro ? ' pro' : ' warn'}" title="${F.esc(h.tip || '')}">${F.esc(h.text)}</span>`).join('');
   }
 
   async function addFiles(paths) {
@@ -242,7 +250,7 @@ function QueueTool(cfg) {
       : o.type === 'select'
         ? `<label class="opt">${t(o.label)} <select data-opt="${o.id}">${o.choices.map(([v, k]) => `<option value="${v}"${v === opts[o.id] ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label>`
         : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}">${I.check}${t(o.label)}</button>`)).join('');
-    box.querySelectorAll('select[data-opt]').forEach((s) => s.onchange = () => { opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); });
+    box.querySelectorAll('select[data-opt]').forEach((s) => s.onchange = () => { opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); items.forEach(tags); });
     box.querySelectorAll('button[data-opt]').forEach((b) => b.onclick = () => {
       const id = b.dataset.opt;
       opts[id] = opts[id] === '1' ? '0' : '1';

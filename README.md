@@ -47,7 +47,12 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 <div align="center">
 <img src="docs/screenshots/ai-enhance.png" alt="AI Enhance — Upscaling (videos and images) and Interpolation on your GPU" width="90%">
-<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling for videos and images, RIFE interpolation, running locally on your GPU.</sub>
+<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling for videos and images, RIFE interpolation, running locally on your GPU. Images show the size they will come out at before you start.</sub>
+</div>
+
+<div align="center">
+<img src="docs/screenshots/upscale-compare.png" alt="Image upscaling: original zoomed ×4 versus AI Enhance ×4" width="70%">
+<br><sub><b>Image upscaling ×4</b> — top: the original, simply zoomed. Bottom: AI Enhance. Sharp edges, no blur, JPEG artifacts cleaned up.</sub>
 </div>
 
 <br>
@@ -61,13 +66,18 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 | | Also |
 | :-- | :-- |
-| ⚙️ | **Settings** — choose the graphics card for AI and the video encoder (NVENC / Quick Sync / AMF / CPU), see your Vulkan version, keep the PC awake during long jobs |
+| ⚙️ | **Settings** (<kbd>Ctrl</kbd> + <kbd>,</kbd>) — language, sounds, the graphics card for AI, the video encoder (NVENC / Quick Sync / AMF / CPU), your Vulkan version, keep the PC awake during long jobs |
+| 🧯 | Closing the window while a job runs asks first — no export lost by accident |
 | 🩺 | Clear messages when a graphics card can't run the AI — with a link to the right driver |
-| 🌍 | English & French interface |
+| 🌍 | English & French interface (switch in Settings) |
 | 🔔 | Windows notifications + taskbar progress |
-| 🔊 | Soft UI sounds (one click to mute) |
+| 🔊 | Soft UI sounds (mute them in Settings) |
 | 🛡️ | Never overwrites a file — `name (1).mp4` |
 | 📁 | Output folder per tool, remembered |
+
+<div align="center">
+<img src="docs/screenshots/settings.png" alt="Settings — language, sounds, graphics card, video encoder, Vulkan, keep awake" width="70%">
+</div>
 
 ## Installation
 
@@ -157,11 +167,11 @@ src/
   i18n.js           translations (en, fr)
   sfx.js            UI sounds, synthesized (no audio files)
   app.js            sidebar, navigation, drag & drop, shared helpers
-  settings.js       Settings panel (graphics card, encoder, Vulkan, keep awake)
+  settings.js       Settings panel (language, sounds, graphics card, encoder, Vulkan, keep awake)
   ai.js             AI engine — Real-ESRGAN + RIFE (ncnn / Vulkan), GPU detection
   styles.css        the whole design system
   tools/
-    queue.js        reusable file queue (Converter + Audio Extractor)
+    queue.js        reusable file queue (Converter, Audio Extractor, AI Enhance)
     converter.js · downloader.js · trimmer.js · extractor.js · enhancer.js
 build/              icon, installer artwork, installer.nsh
 scripts/            fetch-ytdlp.js

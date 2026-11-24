@@ -654,11 +654,16 @@ optgroup { background: #232327; color: var(--text-3); font-style: normal; }
 .tag { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; letter-spacing: 0.02em; cursor: default; }
 .tag.warn { color: #ffd08a; background: rgba(255,159,10,0.14); box-shadow: inset 0 0 0 0.5px rgba(255,159,10,0.5); }
 .tag.pro { display: none; color: #9fd3ff; background: rgba(10,132,255,0.12); box-shadow: inset 0 0 0 0.5px rgba(10,132,255,0.45); }
-.adv-on .tag.pro { display: inline-block; }
+.adv-on .tag.pro, .tool-enhance .tag.pro { display: inline-block; } /* AI Enhance: output size of images */
 
 /* ---------------------------------------------------------------- Queue options (Audio Extractor) */
 .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 4px 12px; animation: toolIn 0.5s var(--ease) both; }
 .opt select { text-transform: none; letter-spacing: 0; min-width: 170px; }
+/* AI Enhance: the four targets on one tidy row, label above each select (Upscaling ×3, then Interpolation). */
+.tool-enhance .opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; }
+.tool-enhance .opts .adv-section { grid-column: 1 / -1; }
+.tool-enhance .opt { flex-direction: column; align-items: stretch; gap: 5px; font-size: 11.5px; font-weight: 500; }
+.tool-enhance .opt select { min-width: 0; width: 100%; }
 .pill.toggle { gap: 6px; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; padding: 0 12px 0 10px; }
 .pill.toggle svg { width: 13px; height: 13px; stroke-width: 2.6; opacity: 0.25; transition: opacity 0.25s, transform 0.4s var(--spring); transform: scale(0.8); }
 .pill.toggle.on { color: #9fd3ff; background: linear-gradient(180deg, rgba(10,132,255,0.38), rgba(10,132,255,0.14)); box-shadow: inset 0 1px 0 rgba(150,205,255,0.45), inset 0 0 0 0.5px rgba(10,132,255,0.8), 0 8px 20px -8px rgba(10,132,255,0.9); }
@@ -844,6 +849,7 @@ body.dragging .drop-ring { transform: scale(1); }
   box-shadow: 0 34px 90px -20px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 0 0 0.5px rgba(255,255,255,0.1);
   animation: upIn 0.55s var(--spring) both;
 }
+.modal-card:focus { outline: none; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; }
 .modal-head h2 { margin: 0; font: 700 20px/1.2 var(--font-display); letter-spacing: -0.02em; }
 .set-group { display: flex; flex-direction: column; gap: 2px; padding: 10px 0 6px; box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.08); }

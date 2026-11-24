@@ -27,6 +27,17 @@ function createWindow() {
   });
   win.setMenu(null);
   win.once('ready-to-show', () => win.show());
+  // Closing in the middle of an export / AI job / download would throw the work away: ask first.
+  win.on('close', (e) => {
+    if (!running) return;
+    const fr = uiLang === 'fr';
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning', buttons: fr ? ['Quitter quand même', 'Continuer'] : ['Quit anyway', 'Keep working'], defaultId: 1, cancelId: 1, noLink: true,
+      title: 'MediaFlow Studio', message: fr ? 'Des tâches sont en cours.' : 'Jobs are still running.',
+      detail: fr ? 'Si vous quittez maintenant, elles seront arrêtées et les fichiers en cours ne seront pas terminés.' : 'If you quit now they stop, and the files being made are not finished.',
+    });
+    if (choice !== 0) e.preventDefault();
+  });
   win.loadFile(path.join(__dirname, 'index.html'));
 }
 
@@ -96,7 +107,8 @@ function awake(job) { // no sleep / suspend while any job runs (the screen may s
     if (--running === 0 && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
   });
 }
-ipcMain.handle('prefs', (_e, p = {}) => { setEncoder(p.encoder); ai.setGpu(p.aiGpu); keepAwake = p.keepAwake !== false; });
+let uiLang = 'en';
+ipcMain.handle('prefs', (_e, p = {}) => { setEncoder(p.encoder); ai.setGpu(p.aiGpu); keepAwake = p.keepAwake !== false; uiLang = p.lang || uiLang; });
 // Everything the Settings panel shows: working encoders, Vulkan GPUs + versions, the graphics vendors present.
 ipcMain.handle('hardware', async (_e, fresh) => {
   const [enc, vk, info] = await Promise.all([encoders(), ai.devices(FFMPEG, fresh), app.getGPUInfo('basic').catch(() => ({}))]);

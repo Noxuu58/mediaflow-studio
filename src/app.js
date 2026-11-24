@@ -104,16 +104,16 @@ const App = (() => {
     muted = m;
     store.set('muted', m ? '1' : '0');
     document.body.classList.toggle('muted', m);
-    $('#sound').setAttribute('aria-pressed', String(!m));
   }
 
   // shortcut: switching language reloads the window (queues are lost), so it is refused while jobs run.
-  function switchLang() {
-    if (tools.some((x) => x.isBusy?.())) return toast(t('app.langBusy'), true);
-    const codes = Object.keys(I18n.LANGS);
-    store.set('lang', codes[(codes.indexOf(I18n.lang) + 1) % codes.length]);
+  function setLang(code) {
+    if (code === I18n.lang) return true;
+    if (tools.some((x) => x.isBusy?.())) { toast(t('app.langBusy'), true); return false; }
+    store.set('lang', code);
     document.body.classList.add('leaving');
     setTimeout(() => location.reload(), 220);
+    return true;
   }
 
   // ---- Auto-update banner (events come from electron-updater in main.js) -------------------------
@@ -160,7 +160,7 @@ const App = (() => {
   }
 
   // Settings (stored here, applied in the main process): video encoder, AI graphics card, keep awake.
-  const prefs = () => ({ encoder: store.get('pref.encoder') || 'auto', aiGpu: store.get('pref.aiGpu') || 'auto', keepAwake: store.get('pref.awake') !== '0' });
+  const prefs = () => ({ encoder: store.get('pref.encoder') || 'auto', aiGpu: store.get('pref.aiGpu') || 'auto', keepAwake: store.get('pref.awake') !== '0', lang: I18n.lang });
   const prefsReady = window.api.setPrefs(prefs());
   function setPref(k, v) {
     store.set(k, v);
@@ -187,11 +187,8 @@ const App = (() => {
       b.onclick = () => show(x.id);
       $('#nav').append(b);
     }
-    $('#lang-label').textContent = I18n.LANGS[I18n.lang];
-    $('#lang').onclick = switchLang;
     document.body.classList.toggle('collapsed', store.get('collapsed') === '1');
     $('#collapse').onclick = () => store.set('collapsed', document.body.classList.toggle('collapsed') ? '1' : '0');
-    $('#sound').onclick = () => { setMuted(!muted); if (!muted) sfx('toggle'); };
     setMuted(muted);
     window.api.update.onStatus(onUpdate);
     $('#updates').onclick = () => checkUpdates(true);
@@ -203,10 +200,10 @@ const App = (() => {
     requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready')));
   }
 
-  // Every enabled button answers with a soft click; toggles get a lighter tick. (#sound plays its own.)
+  // Every enabled button answers with a soft click; toggles get a lighter tick. (the Sounds switch plays its own.)
   addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (!b || b.disabled || b.id === 'sound') return;
+    if (!b || b.disabled || b.id === 'set-sound') return;
     sfx(b.matches('.seg button, .pill, .nav-item, .up-close') ? 'toggle' : 'tap');
   }, true);
 
@@ -241,5 +238,5 @@ const App = (() => {
   addEventListener('resize', moveGlider);
   addEventListener('DOMContentLoaded', start);
 
-  return { register: (x) => tools.push(x), toast, notify, store, sfx, icons, fmt, prefs, setPref, prefsReady };
+  return { register: (x) => tools.push(x), toast, notify, store, sfx, icons, fmt, prefs, setPref, prefsReady, setLang, setMuted, get muted() { return muted; }, isBusy: busy };
 })();

@@ -27,6 +27,12 @@
       { id: 'aiModel', label: 'adv.ai.model', type: 'select', value: 'fast', choices: [['fast', 'adv.ai.fast'], ['quality', 'adv.ai.quality']] },
       { id: 'aiFps', label: 'enh.fps', type: 'select', value: '60', choices: [['24', '24'], ['25', '25'], ['30', '30'], ['50', '50'], ['60', '60'], ['120', '120'], ['180', '180'], ['240', '240']] },
     ],
+    // Images: the size they will come out at (×2 / ×3 / ×4), flagged when it is past what the engine can save.
+    hints: (it, p, o) => {
+      if (it.kind !== 'image' || !p.video) return [];
+      const w = p.video.width * o.aiScale, h = p.video.height * o.aiScale, big = Math.max(w, h) > 16383; // ai.MAX_SIDE
+      return [{ text: `→ ${w}×${h}`, pro: !big, tip: big ? I18n.error({ message: 'IMAGE_TOO_BIG:16383' }) : t('enh.outSize') }];
+    },
     // Each mode only uses its own target: resolution for Upscaling, frame rate for Interpolation.
     run: ({ id, src, target, outDir, options }) => window.api.convert({
       id, src, target, outDir,
