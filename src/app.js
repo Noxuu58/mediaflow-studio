@@ -35,6 +35,7 @@ const App = (() => {
     // A frame holding a waveform: same 24px grid and geometric weight as the other nav icons.
     extract: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M8 10v4M11 8.5v7M14 10.5v3M17 9.5v5"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></svg>',
+    sparkles: '<svg viewBox="0 0 24 24"><path d="M10 3.5 11.6 8a3 3 0 0 0 1.9 1.9L18 11.5 13.5 13a3 3 0 0 0-1.9 1.9L10 19.5 8.4 15a3 3 0 0 0-1.9-1.9L2 11.5 6.5 10A3 3 0 0 0 8.4 8z"/><path d="M18.5 3v4M16.5 5h4"/></svg>',
     sliders: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
     phone: '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
     screen: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="13" rx="3"/><path d="m10.5 9 4 2.5-4 2.5z" fill="currentColor"/></svg>',

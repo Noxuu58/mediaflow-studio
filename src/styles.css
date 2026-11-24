@@ -628,6 +628,23 @@ optgroup { background: #232327; color: var(--text-3); font-style: normal; }
 .adv-grid .opt { flex-direction: column; align-items: stretch; gap: 5px; font-size: 11.5px; font-weight: 500; }
 .adv-grid select { width: 100%; text-transform: none; letter-spacing: 0; }
 
+/* AI Video Enhancement section inside the Advanced grid */
+.adv-section {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 6px; padding-top: 12px; border-top: 0.5px solid var(--line); font-size: 12px; color: var(--text-3);
+}
+.adv-section svg { width: 16px; height: 16px; color: #d6a8ff; filter: drop-shadow(0 0 6px rgba(191,90,242,0.7)); }
+.adv-section b {
+  font-weight: 650; font-size: 12.5px;
+  background: linear-gradient(90deg, #d6a8ff, #7fdcff); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.adv-section span:not(.chip) { flex: 1; min-width: 200px; }
+.ai-status.ok { color: #d6a8ff; background: rgba(191,90,242,0.12); box-shadow: inset 0 0 0 0.5px rgba(191,90,242,0.5); }
+.ai-status.off { color: var(--text-3); }
+.adv-grid select:disabled { opacity: 0.4; }
+/* A row in its AI stage gets a violet-to-cyan bar so long jobs read as "AI at work" */
+.row.ai-run > .bar i { background: linear-gradient(90deg, #bf5af2, #7fdcff, #bf5af2) 0 0 / 300% 100%; box-shadow: 0 0 10px rgba(191,90,242,0.6), 0 0 22px rgba(90,200,250,0.35); }
+
 /* Row tags: friendly warnings always, technical ones only in Advanced mode */
 .tags { display: flex; gap: 5px; margin-top: 4px; flex-wrap: wrap; }
 .tags:empty { display: none; }

@@ -33,7 +33,7 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 | | Tool | What it does |
 | :-- | :-- | :-- |
-| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control. |
+| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control — plus **AI Video Enhancement**: Real-ESRGAN upscaling (up to 4K) and RIFE frame interpolation (up to 60 fps), running locally on your GPU. |
 | ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. |
 | ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
 | 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
@@ -164,7 +164,7 @@ test/               node:test suites
 
 ## Credits
 
-[FFmpeg](https://ffmpeg.org) (GPL-3.0) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) · [Electron](https://www.electronjs.org) (MIT) — all bundled in the app.
+[FFmpeg](https://ffmpeg.org) (GPL-3.0) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) · [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) (BSD-3-Clause) · [RIFE ncnn Vulkan](https://github.com/nihui/rife-ncnn-vulkan) (MIT) · [Electron](https://www.electronjs.org) (MIT) — all bundled in the app.
 
 Only download content you have the right to download.
 

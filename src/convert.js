@@ -254,7 +254,13 @@ const ADVANCED = {
   audio: ['auto', 'aac192', 'aac320', 'pcm16', 'pcm24', 'copy'],
   tracks: ['auto', 'first', 'all', 'mix'],
   gpu: ['auto', 'on', 'off'],
+  // AI Video Enhancement (src/ai.js): higher than the source = AI, lower = plain downscale / frame drop.
+  aiHeight: ['auto', '720', '1080', '1440', '2160'],
+  aiFps: ['auto', '24', '25', '30', '50', '60'],
+  aiModel: ['auto', 'fast', 'quality'],
 };
+const TONEMAP = 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv';
+const aiRequested = (adv = {}) => ['aiHeight', 'aiFps'].some((k) => adv[k] && adv[k] !== 'auto');
 const AUDIO_ONLY_KEYS = ['audio', 'tracks'];
 
 function settingsFor(preset, adv = {}) {
@@ -340,7 +346,7 @@ function buildArgs(src, info, s, gpu) {
       : s.codec === 'hevc' && v.depth >= 10 ? 10 : 8;
   const tonemap = v.hdr && depth === 8; // HDR → SDR so 8-bit deliveries don't look washed out
   const vf = [];
-  if (tonemap) vf.push('zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv');
+  if (tonemap) vf.push(TONEMAP);
   const turned = Math.abs(v.rotation) % 180 === 90; // ffmpeg auto-rotates before the filters
   const W = turned ? v.height : v.width, H = turned ? v.width : v.height;
   if (s.vertical) vf.push(W > H ? 'crop=trunc(ih*9/16/2)*2:ih,scale=1080:1920:flags=lanczos' : 'scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,pad=1080:1920:(ow-iw)/2:(oh-ih)/2');
@@ -360,14 +366,38 @@ function buildArgs(src, info, s, gpu) {
 }
 
 // Preset job: probe → settings → FFmpeg (GPU first when available, CPU fallback).
+// With AI targets (aiHeight / aiFps), the AI stage (src/ai.js) runs first and the preset encode takes its
+// output: progress 0-90 % is the AI work (onProgress gets a stage label), 90-100 % the final encode.
 async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
   const kind = kindOf(src);
   if (kind !== 'video' && !(kind === 'audio' && preset === 'audio')) throw new Error('UNSUPPORTED');
   const s = settingsFor(preset, adv);
-  const info = await probe(src, { thumb: false });
+  let info = await probe(src, { thumb: false });
   const gpu = s.gpu === 'off' ? null : await detectGpu();
-  const { tries, ext } = buildArgs(src, info, s, gpu);
-  return produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, ext), tries, onProgress, info.duration);
+  let input = src, tmp = null, report = (x) => onProgress(x);
+  try {
+    if (preset !== 'audio' && info.video && (s.aiHeight || s.aiFps)) {
+      const ai = require('./ai');
+      const p = ai.plan(info, { height: s.aiHeight || 'source', fps: s.aiFps || 'source', model: s.aiModel || 'fast' });
+      s.height = p.targetH; // exact target: AI already reached it when upscaling, plain downscale otherwise
+      if (Math.abs(p.targetFps - p.srcFps) > 0.01) s.fps = p.targetFps; // drop frames, or resample RIFE's ×N to the target
+      if (p.ai) {
+        if (!ai.available()) throw new Error('AI_MISSING');
+        const job = { aborted: false, procs: new Set() };
+        const key = id ?? Symbol('job');
+        jobs.set(key, job); // cancel(id) reaches the AI processes too
+        try {
+          ({ file: input, tmp } = await ai.enhance(src, info, p, { FFMPEG, job, gpu, tonemap: TONEMAP, onProgress: (x, stage) => onProgress(x * 0.9, stage) }));
+        } finally { if (jobs.get(key) === job) jobs.delete(key); }
+        info = { ...(await probe(input, { thumb: false })), timecode: info.timecode };
+        report = (x) => onProgress(0.9 + x * 0.1, 'encode');
+      }
+    }
+    const { tries, ext } = buildArgs(input, info, s, gpu);
+    return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, ext), tries, report, info.duration);
+  } finally {
+    if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
 }
 
 const AUDIO_OUT = ['mp3', 'wav', 'flac', 'm4a'];
@@ -408,4 +438,4 @@ async function extract(src, opts = {}, outDir, onProgress = () => {}, id) {
   return job('', '', channels === 'mono' ? ['-ac', '1'] : []);
 }
 
-module.exports = { convert, encode, trim, extract, strip, probe, detectGpu, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };
+module.exports = { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('api', {
   extract: (job) => ipcRenderer.invoke('extract', job),
   strip: (src, duration) => ipcRenderer.invoke('strip', src, duration),
   gpu: () => ipcRenderer.invoke('gpu'),
+  aiInfo: () => ipcRenderer.invoke('ai-info'),
   cancel: (id) => ipcRenderer.invoke('cancel', id),
   taskbar: (p) => ipcRenderer.invoke('taskbar', p),
   onProgress: (cb) => ipcRenderer.on('progress', (_e, d) => cb(d)),

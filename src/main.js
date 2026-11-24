@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { convert, encode, trim, extract, strip, probe, detectGpu, kindOf, TARGETS, cancel, killAll } = require('./convert');
+const { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, kindOf, TARGETS, cancel, killAll, FFMPEG } = require('./convert');
 const dl = require('./download');
 
 // Windows taskbar/notification identity; must equal build.appId (the installer stamps it on the shortcuts).
@@ -42,12 +42,18 @@ ipcMain.handle('pick-dir', async () => (await dialog.showOpenDialog({ properties
 ipcMain.handle('reveal', (_e, p) => shell.showItemInFolder(p));
 ipcMain.handle('cancel', (_e, id) => cancel(id));
 ipcMain.handle('taskbar', (e, p) => BrowserWindow.fromWebContents(e.sender)?.setProgressBar(p));
-const progress = (e, id) => (p) => e.sender.send('progress', { id, p });
+const progress = (e, id) => (p, stage) => e.sender.send('progress', { id, p, stage }); // stage: AI step label
 // Targets starting with '@' are presets (engine validates the advanced overrides); others are plain formats.
-ipcMain.handle('convert', (e, { id, src, target, outDir, advanced }) => (String(target).startsWith('@')
-  ? encode(src, target.slice(1), advanced || {}, outDir, progress(e, id), id)
-  : convert(src, target, outDir, progress(e, id), id)));
+// A plain video format with AI targets goes through the "Clean export" pipeline in that container.
+ipcMain.handle('convert', (e, { id, src, target, outDir, advanced = {} }) => {
+  if (String(target).startsWith('@')) return encode(src, target.slice(1), advanced, outDir, progress(e, id), id);
+  if (aiRequested(advanced) && kindOf(src) === 'video' && ['mp4', 'mov', 'mkv'].includes(target)) {
+    return encode(src, 'youtube', { ...advanced, container: target }, outDir, progress(e, id), id);
+  }
+  return convert(src, target, outDir, progress(e, id), id);
+});
 ipcMain.handle('gpu', () => detectGpu());
+ipcMain.handle('ai-info', () => require('./ai').detect(FFMPEG));
 ipcMain.handle('trim', (e, { id, src, range, outDir }) => trim(src, range, outDir, progress(e, id), id));
 ipcMain.handle('extract', (e, { id, src, options, outDir }) => extract(src, options, outDir, progress(e, id), id));
 ipcMain.handle('strip', (_e, src, duration) => strip(src, duration));

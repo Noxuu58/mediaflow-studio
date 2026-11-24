@@ -25,7 +25,7 @@ function QueueTool(cfg) {
   const items = new Map(); // id -> item
   let root, outDir = App.store.get(key('outDir')), busy = false, cancelled = false, nextId = 0, probeChain = Promise.resolve();
   let run = null; // { total, done, start, current } while the queue runs
-  const allOptions = [...(cfg.options || []), ...(cfg.advanced || [])];
+  const allOptions = [...(cfg.options || []), ...(cfg.advanced || [])].filter((o) => o.id); // section headers have no id
   const opts = Object.fromEntries(allOptions.map((o) => [o.id, App.store.get(key(o.id)) ?? o.value]));
   const isPreset = (x) => x.startsWith('@');
   const label = (x) => (isPreset(x) ? t(`preset.${x.slice(1)}`) : x);
@@ -173,17 +173,23 @@ function QueueTool(cfg) {
     window.api.taskbar(frac);
   }
 
-  window.api.onProgress(({ id, p }) => {
+  window.api.onProgress(({ id, p, stage }) => {
     const it = items.get(id);
     if (!it || it.state !== 'run') return;
     it.el.querySelector('.bar i').style.width = `${p * 100}%`;
     it.el.querySelector('.pct').textContent = `${Math.round(p * 100)} %`;
     const left = eta((performance.now() - it.start) / 1000, p);
-    it.el.querySelector('.eta').textContent = left ? t('common.left', { t: left }) : t('common.estimating');
+    // Long AI jobs say which step they're on: "AI upscaling · 2:10 left".
+    it.el.querySelector('.eta').textContent = [stage && t(`ai.${stage}`), left ? t('common.left', { t: left }) : !stage && t('common.estimating')].filter(Boolean).join(' · ');
+    it.el.classList.toggle('ai-run', Boolean(stage) && stage !== 'encode');
     overall(p);
   });
 
-  const options = () => Object.fromEntries(allOptions.map((o) => [o.id, o.type === 'toggle' ? opts[o.id] === '1' : opts[o.id]]));
+  // Advanced settings only apply while Advanced mode is on: Simple mode always means "the preset, as is".
+  const advancedIds = new Set((cfg.advanced || []).map((o) => o.id));
+  const options = () => Object.fromEntries(allOptions
+    .filter((o) => !advancedIds.has(o.id) || root.classList.contains('adv-on'))
+    .map((o) => [o.id, o.type === 'toggle' ? opts[o.id] === '1' : opts[o.id]]));
 
   async function runAll() {
     if (busy) return;
@@ -229,10 +235,13 @@ function QueueTool(cfg) {
 
   const pick = async () => addFiles(await window.api.pickFiles());
 
+  // Entries are selects, toggles, or section headers ({ section, sub, icon, status }) spanning the whole row.
   function renderOptions(box, list) {
-    box.innerHTML = list.map((o) => o.type === 'select'
-      ? `<label class="opt">${t(o.label)} <select data-opt="${o.id}">${o.choices.map(([v, k]) => `<option value="${v}"${v === opts[o.id] ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label>`
-      : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}">${I.check}${t(o.label)}</button>`).join('');
+    box.innerHTML = list.map((o) => (o.section
+      ? `<div class="adv-section">${I[o.icon] || ''}<b>${t(o.section)}</b><span>${t(o.sub)}</span>${o.status ? `<span class="chip ${o.status}"></span>` : ''}</div>`
+      : o.type === 'select'
+        ? `<label class="opt">${t(o.label)} <select data-opt="${o.id}">${o.choices.map(([v, k]) => `<option value="${v}"${v === opts[o.id] ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label>`
+        : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}">${I.check}${t(o.label)}</button>`)).join('');
     box.querySelectorAll('select[data-opt]').forEach((s) => s.onchange = () => { opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); });
     box.querySelectorAll('button[data-opt]').forEach((b) => b.onclick = () => {
       const id = b.dataset.opt;
@@ -289,14 +298,16 @@ function QueueTool(cfg) {
     root.querySelectorAll('.preset').forEach((b) => b.onclick = () => applyTarget(b.dataset.preset));
     if (cfg.advanced) {
       const toggle = q('.adv-toggle');
+      let advMounted = false;
       const setOpen = (open) => {
         root.classList.toggle('adv-on', open);
         toggle.setAttribute('aria-expanded', String(open));
         App.store.set(key('adv.open'), open ? '1' : '0');
+        if (open && !advMounted) { advMounted = true; cfg.onAdvancedMount?.(q('.adv-grid')); } // lazy: first open only
       };
+      renderOptions(q('.adv-grid'), cfg.advanced);
       setOpen(App.store.get(key('adv.open')) === '1');
       toggle.onclick = () => setOpen(!root.classList.contains('adv-on'));
-      renderOptions(q('.adv-grid'), cfg.advanced);
       if (cfg.showGpu) window.api.gpu().then((g) => { q('.adv-gpu').textContent = g ? t('gpu.on', { v: g.vendor }) : t('gpu.off'); q('.adv-gpu').classList.toggle('ok', Boolean(g)); });
     }
     q('.dest').onclick = async () => {

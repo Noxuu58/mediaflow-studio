@@ -1,15 +1,16 @@
 {
   "name": "mediaflow-studio",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "MediaFlow Studio — a polished media toolkit for video editors: convert, download, trim and extract audio.",
   "main": "src/main.js",
   "scripts": {
     "test": "node --test test/*.test.js",
     "start": "electron .",
     "fetch-ytdlp": "node scripts/fetch-ytdlp.js",
-    "dist": "node scripts/fetch-ytdlp.js && node scripts/fetch-ffprobe.js && electron-builder --win --publish never",
-    "pretest": "node scripts/fetch-ffprobe.js",
-    "fetch-ffprobe": "node scripts/fetch-ffprobe.js"
+    "dist": "node scripts/fetch-ytdlp.js && node scripts/fetch-ffprobe.js && node scripts/fetch-ai.js && electron-builder --win --publish never",
+    "pretest": "node scripts/fetch-ffprobe.js && node scripts/fetch-ai.js",
+    "fetch-ffprobe": "node scripts/fetch-ffprobe.js",
+    "fetch-ai": "node scripts/fetch-ai.js"
   },
   "author": "Noxuu58",
   "license": "ISC",
@@ -41,6 +42,14 @@
       {
         "from": "vendor/ffprobe.exe",
         "to": "bin/ffprobe.exe"
+      },
+      {
+        "from": "vendor/ai",
+        "to": "ai",
+        "filter": [
+          "**/*",
+          "!**/.sha256"
+        ]
       }
     ],
     "win": {

@@ -34,12 +34,12 @@ test('yt-dlp downloads', async (t) => {
   }
 
   await t.test('cancel kills the job and cleans the temp folder', async () => {
-    const before = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-')).length;
+    const before = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-') && !n.startsWith('mediaflow-ai-')) /* AI tests run in parallel */.length;
     const job = download('long', LONG, { fmt: 'mp4', quality: '1080', outDir: out });
     await new Promise((r) => setTimeout(r, 6000));
     cancel('long');
     await assert.rejects(job, /CANCELLED/);
-    assert.strictEqual(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-')).length, before);
+    assert.strictEqual(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-') && !n.startsWith('mediaflow-ai-')) /* AI tests run in parallel */.length, before);
     assert.ok(!fs.readdirSync(out).some((n) => /Bunny/i.test(n)), 'no partial file in the output folder');
   });
 });
