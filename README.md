@@ -46,8 +46,8 @@ Install it in two clicks: everything is included, nothing else to set up.
 </div>
 
 <div align="center">
-<img src="docs/screenshots/ai-enhance.png" alt="AI Enhance — Upscaling and Interpolation on your GPU" width="90%">
-<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling and RIFE interpolation, running locally on your GPU.</sub>
+<img src="docs/screenshots/ai-enhance.png" alt="AI Enhance — Upscaling (videos and images) and Interpolation on your GPU" width="90%">
+<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling for videos and images, RIFE interpolation, running locally on your GPU.</sub>
 </div>
 
 <br>
