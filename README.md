@@ -76,7 +76,8 @@ Install it in two clicks: everything is included, nothing else to set up.
 | 📁 | Output folder per tool, remembered |
 
 <div align="center">
-<img src="docs/screenshots/settings.png" alt="Settings — language, sounds, graphics card, video encoder, Vulkan, keep awake" width="70%">
+<img src="docs/screenshots/settings.png" alt="Settings — 9 languages, sounds, graphics card, video encoder, Vulkan, keep awake" width="70%">
+<br><sub><b>Settings</b> — 9 languages, each listed under its own name.</sub>
 </div>
 
 ## Installation
