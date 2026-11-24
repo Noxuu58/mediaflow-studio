@@ -130,6 +130,24 @@ ipcMain.handle('update-check', () => (canUpdate() ? autoUpdater.checkForUpdates(
 ipcMain.handle('update-download', () => (portable ? shell.openExternal(RELEASES) : autoUpdater.downloadUpdate().catch(() => {})));
 ipcMain.handle('update-install', () => { killAll(); dl.cancel(); autoUpdater.quitAndInstall(true, true); }); // silent install, then relaunch
 
+// The installed app keeps its Start Menu / desktop shortcuts pointed at itself. The installer relaunches the app
+// through the Start Menu shortcut after an update: aimed at an old copy (a portable run in %TEMP%), it reopened
+// that old version and "Restart & Install" seemed to do nothing. Only existing shortcuts are fixed, never created.
+function repairShortcuts() {
+  if (!app.isPackaged || portable) return;
+  const exe = process.execPath;
+  const links = [path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'MediaFlow Studio.lnk'),
+    path.join(app.getPath('desktop'), 'MediaFlow Studio.lnk')];
+  for (const link of links) {
+    try {
+      if (!fs.existsSync(link)) continue;
+      const { target } = shell.readShortcutLink(link);
+      if (path.resolve(target).toLowerCase() === exe.toLowerCase()) continue;
+      shell.writeShortcutLink(link, 'update', { target: exe, cwd: path.dirname(exe), icon: exe, iconIndex: 0, appUserModelId: APP_ID });
+    } catch {} // unreadable shortcut: leave it alone
+  }
+}
+
 // AI temp folders left behind by a crash or a forced shutdown (a normal run always deletes its own).
 function cleanStaleTemp() {
   const dayAgo = Date.now() - 24 * 3600e3;
@@ -138,6 +156,6 @@ function cleanStaleTemp() {
     try { if (fs.statSync(p).mtimeMs < dayAgo) fs.rmSync(p, { recursive: true, force: true }); } catch {}
   }
 }
-app.whenReady().then(() => { createWindow(); encoders(); setTimeout(cleanStaleTemp, 5000); }); // GPU test runs once, in the background
+app.whenReady().then(() => { createWindow(); encoders(); setTimeout(() => { cleanStaleTemp(); repairShortcuts(); }, 5000); }); // GPU test runs once, in the background
 app.on('before-quit', () => { killAll(); dl.cancel(); }); // don't leave orphan ffmpeg / yt-dlp processes running
 app.on('window-all-closed', () => app.quit());
