@@ -22,7 +22,7 @@
       { section: 'enh.status', sub: 'enh.statusSub', icon: 'sparkles', status: 'ai-status' },
       { id: 'aiHeight', label: 'enh.res', type: 'select', value: '1080',
         choices: [['720', '720p (HD)'], ['1080', '1080p (Full HD)'], ['1440', '1440p (2K)'], ['2160', '2160p (4K)']] },
-      { id: 'aiFps', label: 'enh.fps', type: 'select', value: '60', choices: [['24', '24'], ['25', '25'], ['30', '30'], ['50', '50'], ['60', '60']] },
+      { id: 'aiFps', label: 'enh.fps', type: 'select', value: '60', choices: [['24', '24'], ['25', '25'], ['30', '30'], ['50', '50'], ['60', '60'], ['120', '120'], ['180', '180'], ['240', '240']] },
       { id: 'aiModel', label: 'adv.ai.model', type: 'select', value: 'fast', choices: [['fast', 'adv.ai.fast'], ['quality', 'adv.ai.quality']] },
     ],
     // Each mode only uses its own target: resolution for Upscaling, frame rate for Interpolation.

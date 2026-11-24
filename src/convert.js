@@ -259,7 +259,7 @@ const ADVANCED = {
   gpu: ['auto', 'on', 'off'],
   // AI Video Enhancement (src/ai.js): higher than the source = AI, lower = plain downscale / frame drop.
   aiHeight: ['auto', '720', '1080', '1440', '2160'],
-  aiFps: ['auto', '24', '25', '30', '50', '60'],
+  aiFps: ['auto', '24', '25', '30', '50', '60', '120', '180', '240'],
   aiModel: ['auto', 'fast', 'quality'],
 };
 const TONEMAP = 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv';

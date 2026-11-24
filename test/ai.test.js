@@ -17,6 +17,8 @@ test('plan: AI only when the target is higher than the source', () => {
   assert.deepStrictEqual(pick(ai.plan(info(2160, 60), { height: 1080, fps: 30 })), { upscale: false, scale: 1, mult: 1, ai: false }); // down = no AI
   assert.deepStrictEqual(pick(ai.plan(info(1080, 30), { fps: 60 })), { upscale: false, scale: 1, mult: 2, ai: true });
   assert.strictEqual(ai.plan(info(1080, 24), { fps: 60 }).mult, 3); // RIFE ×3 = 72, then resampled to 60
+  assert.strictEqual(ai.plan(info(1080, 30), { fps: 240 }).mult, 8); // high-frame-rate targets
+  assert.strictEqual(ai.plan(info(1080, 24), { fps: 180 }).mult, 8); // ×8 = 192, resampled to 180
   assert.strictEqual(ai.plan(info(1080, 29.97), { fps: 30 }).ai, false); // same rate: nothing to invent
   assert.strictEqual(ai.plan(info(1080, 30, { rotation: -90, width: 1080, height: 1920 }), { height: 1080 }).upscale, false); // portrait phone clip
 });
@@ -51,6 +53,13 @@ test('AI on the GPU', async (t) => {
     assert.strictEqual(p.video.fps, 30);
     const n = frameCount(res);
     assert.ok(Math.abs(n - 120) <= 1, `frames ${n}`);
+  });
+
+  await t.test('interpolate 15 → 240 fps (high-frame-rate target, RIFE ×16)', async () => {
+    const res = await encode(s('small15.mp4'), 'youtube', { aiFps: '240', gpu: 'on' }, out);
+    assert.strictEqual((await probe(res)).video.fps, 240);
+    const n = frameCount(res);
+    assert.ok(Math.abs(n - 960) <= 16, `frames ${n}`);
   });
 
   await t.test('both at once, plus a lower target fps path (no AI)', async () => {
