@@ -32,7 +32,8 @@ const App = (() => {
     convert: '<svg viewBox="0 0 24 24"><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5"/></svg>',
     download: '<svg viewBox="0 0 24 24"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>',
     scissors: '<svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.6"/><circle cx="6" cy="17" r="2.6"/><path d="M8.2 8.4 20 17M8.2 15.6 20 7"/></svg>',
-    extract: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="11" height="10" rx="2.5"/><path d="m13.5 8.5 3-2v7l-3-2"/><path d="M17 17.5v-4M20 19v-7M14 19v-2"/></svg>',
+    // A frame holding a waveform: same 24px grid and geometric weight as the other nav icons.
+    extract: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M8 10v4M11 8.5v7M14 10.5v3M17 9.5v5"/></svg>',
     play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></svg>',
     sliders: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
     phone: '<svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
@@ -177,6 +178,13 @@ const App = (() => {
     $('#updates').onclick = () => checkUpdates(true);
     $('.up-close').onclick = () => { $('#update').hidden = true; }; // a download keeps going in the background
     window.api.version().then((v) => { $('#updates').title = `${t('up.check')} · v${v}`; });
+    // Sidebar GPU badge: green dot + "NVENC ready" (or Quick Sync / AMF), grey dot + "CPU encoding" otherwise.
+    window.api.gpu().then((g) => {
+      const short = g && { h264_nvenc: 'NVENC', h264_qsv: 'Quick Sync', h264_amf: 'AMF' }[g.h264];
+      $('#gpu-status').classList.add(g ? 'ok' : 'cpu');
+      $('#gpu-label').textContent = g ? t('gpu.ready', { v: short }) : t('gpu.cpu');
+      $('#gpu-status').title = g ? t('gpu.on', { v: g.vendor }) : t('gpu.off');
+    });
     setTimeout(() => checkUpdates(false), 4000); // quietly, once the window has settled
     show(store.get('tool'));
     requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready')));
@@ -198,13 +206,20 @@ const App = (() => {
     b.style.setProperty('--my', `${e.clientY - r.top}px`);
   }, { passive: true });
 
-  // Drag & drop anywhere in the window goes to the active tool.
+  // Drag & drop anywhere in the window goes to the active tool. If the tool shows its drop zone (.hero),
+  // that zone lights up (body.drop-zone); otherwise the full-window overlay appears (body.dragging).
   let depth = 0;
-  addEventListener('dragenter', (e) => { e.preventDefault(); if ((active?.onDrop || active?.onDropText) && ++depth === 1) document.body.classList.add('dragging'); });
-  addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; document.body.classList.remove('dragging'); } });
+  const endDrag = () => { depth = 0; document.body.classList.remove('dragging', 'drop-zone'); };
+  addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (!(active?.onDrop || active?.onDropText) || ++depth !== 1) return;
+    const zone = active.root?.querySelector('.hero');
+    document.body.classList.add(zone && zone.offsetParent ? 'drop-zone' : 'dragging');
+  });
+  addEventListener('dragleave', () => { if (--depth <= 0) endDrag(); });
   addEventListener('dragover', (e) => e.preventDefault());
   addEventListener('drop', (e) => {
-    e.preventDefault(); depth = 0; document.body.classList.remove('dragging');
+    e.preventDefault(); endDrag();
     const paths = [...e.dataTransfer.files].map(window.api.pathOf).filter(Boolean);
     if (paths.length) active?.onDrop?.(paths);
     else active?.onDropText?.(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'));

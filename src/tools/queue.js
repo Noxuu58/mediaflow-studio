@@ -5,7 +5,7 @@
 // QueueTool({
 //   id, icon,                                         icon = svg markup
 //   label, title, subtitle, go, notify,               i18n keys (go/notify get { n })
-//   hero: { cards: [kind, kind, kind], title, groups: [[kind, titleKey, 'PNG · JPG'], ...] },
+//   hero: { cards: [kind, kind, kind], title, groups: [[kind, titleKey, 'PNG · JPG', iconName?], ...] },
 //   accept(info) -> bool                              which files belong here (info.kind: image|audio|video)
 //   targets(info) -> ['mp3', ...]                     output formats offered for that file
 //   defaultTarget(item, last) -> 'mp3'                initial choice (last = the format picked most recently)
@@ -250,7 +250,7 @@ function QueueTool(cfg) {
         <span class="stack">${h.cards.map((k) => `<span class="card ${k}">${I[k]}</span>`).join('')}</span>
         <span class="hero-title">${t(h.title)}</span>
         <span class="hero-sub">${t('common.browse')} <kbd>Ctrl</kbd><kbd>O</kbd></span>
-        <span class="groups">${h.groups.map(([k, title, list]) => `<span><b class="${k}">${t(title)}</b>${t(list)}</span>`).join('')}</span>
+        <span class="groups">${h.groups.map(([k, title, list, icon]) => `<span><b class="${k}">${I[icon || k]}${t(title)}</b>${t(list)}</span>`).join('')}</span>
       </button>
       <div class="queue">
         <div class="queue-head">

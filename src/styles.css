@@ -20,7 +20,7 @@
   --blur: blur(34px) saturate(185%);
   --blur-sm: blur(18px) saturate(170%);
   --surface: linear-gradient(150deg, rgba(255,255,255,0.085), rgba(255,255,255,0.025) 45%, rgba(255,255,255,0.045));
-  --surface-hi: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -1px 0 rgba(0,0,0,0.28);
+  --surface-hi: inset 0 1px 0 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.28); /* light caught on the top edge */
   --float: 0 24px 60px -18px rgba(0,0,0,0.65), 0 2px 6px rgba(0,0,0,0.18);
   --rim: linear-gradient(150deg, rgba(255,255,255,0.42), rgba(255,255,255,0.08) 26%, rgba(255,255,255,0.03) 58%, rgba(255,255,255,0.18));
   --control: linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.05));
@@ -47,12 +47,17 @@ body {
 button, select { font: inherit; color: inherit; }
 svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 [hidden] { display: none !important; }
+/* Keyboard keys with physical relief: lighter key cap, crisp top light, darker bottom edge (the key's "depth"). */
 kbd {
-  font: 500 10.5px/1 var(--font); color: inherit; opacity: 0.65;
-  padding: 2px 5px; border-radius: 5px;
-  background: rgba(255,255,255,0.1); box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.2), inset 0 0 0 0.5px rgba(255,255,255,0.1);
+  display: inline-block; min-width: 18px; text-align: center;
+  font: 600 10.5px/1 var(--font); color: rgba(235,235,245,0.82);
+  padding: 2px 5px 1px; border-radius: 5px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.08));
+  border: 0.5px solid rgba(255,255,255,0.14);
+  border-bottom: 2px solid rgba(0,0,0,0.45);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.3);
 }
-kbd + kbd { margin-left: 2px; }
+kbd + kbd { margin-left: 3px; }
 .muted { color: var(--text-3); font-size: 12.5px; }
 .spacer { flex: 1; }
 
@@ -62,6 +67,13 @@ kbd + kbd { margin-left: 2px; }
 .ambient i:nth-child(1) { left: -25vmax; top: -35vmax; background: radial-gradient(closest-side, rgba(10,132,255,0.24), transparent); animation: drift1 38s ease-in-out infinite alternate; }
 .ambient i:nth-child(2) { right: -30vmax; bottom: -40vmax; background: radial-gradient(closest-side, rgba(191,90,242,0.26), transparent); animation: drift2 46s ease-in-out infinite alternate; }
 .ambient i:nth-child(3) { left: 35%; top: -30vmax; width: 50vmax; height: 50vmax; background: radial-gradient(closest-side, rgba(90,200,250,0.14), transparent); animation: drift3 52s ease-in-out infinite alternate; }
+/* Film grain over the background: breaks the "plastic" look of large dark gradients and hides colour banding.
+   Fractal noise generated as an inline SVG — no image file. */
+.ambient::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
 @keyframes drift1 { to { transform: translate(18vmax, 14vmax) scale(1.15); } }
 @keyframes drift2 { to { transform: translate(-16vmax, -10vmax) scale(1.2); } }
 @keyframes drift3 { to { transform: translate(-22vmax, 26vmax) scale(0.9); } }
@@ -106,7 +118,7 @@ nav { position: relative; flex: 1; padding: 6px 10px; display: flex; flex-direct
   border: 0; border-radius: 12px; background: transparent;
   color: var(--text-2); font-weight: 500; text-align: left;
   cursor: pointer; white-space: nowrap;
-  transition: color 0.25s, background 0.25s;
+  transition: color 150ms ease-out, background 150ms ease-out;
 }
 .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .nav-item.active { color: var(--text); background: transparent; }
@@ -119,13 +131,14 @@ nav { position: relative; flex: 1; padding: 6px 10px; display: flex; flex-direct
   backdrop-filter: var(--blur-sm);
 }
 .nav-glider.on { opacity: 1; }
-body.ready .nav-glider { transition: transform 0.6s var(--spring), height 0.4s var(--ease), opacity 0.3s; }
+/* Active pill glides between tabs: 150 ms ease-out, quick enough to feel instant, smooth enough to follow. */
+body.ready .nav-glider { transition: transform 150ms ease-out, height 150ms ease-out, opacity 150ms ease-out; }
 .nav-icon {
   width: 26px; height: 26px; flex: none;
   display: grid; place-items: center; border-radius: 8px;
   transition: background 0.35s, color 0.3s, transform 0.45s var(--spring), box-shadow 0.35s;
 }
-.nav-icon svg { width: 17px; height: 17px; }
+.nav-icon svg { width: 17px; height: 17px; stroke-width: 1.8; } /* one stroke weight for every nav icon */
 .nav-item.active .nav-icon {
   color: #fff;
   background: linear-gradient(180deg, #4aa6ff, #0a74ff);
@@ -136,6 +149,19 @@ body.ready .nav-glider { transition: transform 0.6s var(--spring), height 0.4s v
 .nav-text { transition: opacity 0.25s, transform 0.45s var(--ease); }
 .side-foot { padding: 10px; display: flex; flex-direction: column; gap: 2px; box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.08); }
 #collapse svg { transition: transform 0.55s var(--ease); }
+/* GPU status: a glowing dot + label, aligned with the nav icons (dot alone when the sidebar is collapsed). */
+.gpu-status {
+  display: flex; align-items: center; gap: 11px; height: 30px; padding: 0 9px; margin-top: 4px;
+  font-size: 11.5px; font-weight: 500; color: var(--text-3); white-space: nowrap; cursor: default;
+}
+.gpu-dot { width: 26px; flex: none; display: grid; place-items: center; }
+.gpu-dot::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(235,235,245,0.3); transition: background 0.4s, box-shadow 0.4s;
+}
+.gpu-status.ok { color: #7ef0a0; }
+.gpu-status.ok .gpu-dot::before { background: #30d158; box-shadow: 0 0 0 3px rgba(48,209,88,0.15), 0 0 10px rgba(48,209,88,0.9); animation: breathe 2.4s ease-in-out infinite; }
+.gpu-status.cpu { color: var(--text-2); }
 #sound .mute { opacity: 0; }
 body.muted #sound .wave { opacity: 0; }
 body.muted #sound .mute { opacity: 1; }
@@ -180,13 +206,14 @@ h1 { font: 650 26px/1.15 var(--font-display); letter-spacing: -0.03em; }
 .ghost svg { width: 15px; height: 15px; flex: none; color: var(--text-2); }
 .ghost.sm { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 9px; gap: 6px; }
 .ghost.sm svg { width: 13px; height: 13px; }
+/* Main action: electric blue with a vertical gradient and a luminous drop shadow as soon as it can run. */
 .primary {
   color: #fff; padding: 0 17px 0 19px; font-weight: 600;
-  background: linear-gradient(180deg, rgba(80,165,255,0.98), rgba(10,112,255,0.95));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 8px rgba(0,40,140,0.35), 0 10px 28px -8px rgba(10,132,255,0.85), 0 0 0 0.5px rgba(120,190,255,0.6);
+  background: linear-gradient(180deg, #3d9bff 0%, #0a84ff 55%, #0071e8 100%);
+  box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,40,140,0.4), 0 4px 14px rgba(10,132,255,0.4), 0 0 0 0.5px rgba(120,190,255,0.6);
 }
-.primary:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -2px 8px rgba(0,40,140,0.3), 0 14px 36px -8px rgba(10,132,255,1), 0 0 0 0.5px rgba(150,205,255,0.8); }
-.primary kbd { background: rgba(255,255,255,0.2); opacity: 0.9; }
+.primary:hover { box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(0,40,140,0.35), 0 6px 22px rgba(10,132,255,0.55), 0 0 0 0.5px rgba(150,205,255,0.8); }
+.primary kbd { color: #fff; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.16)); border-color: rgba(255,255,255,0.25); border-bottom-color: rgba(0,30,90,0.5); }
 .danger {
   color: #ff7a72;
   background: linear-gradient(180deg, rgba(255,69,58,0.24), rgba(255,69,58,0.12));
@@ -195,7 +222,11 @@ h1 { font: 650 26px/1.15 var(--font-display); letter-spacing: -0.03em; }
 .ghost:hover, .primary:hover, .danger:hover, .pill:hover { transform: translateY(-1.5px) scale(1.02); }
 .ghost:active, .primary:active, .danger:active, .pill:active { transform: scale(0.95); transition-duration: 0.12s; }
 .primary:disabled, .ghost:disabled { opacity: 0.32; cursor: default; transform: none; box-shadow: var(--control-hi); }
-.primary:disabled { background: linear-gradient(180deg, rgba(80,165,255,0.5), rgba(10,112,255,0.45)); }
+/* Nothing to run yet: a quiet glass button, not a faded blue one (readable label, no glow). */
+.primary:disabled { opacity: 1; color: var(--text-3); background: var(--control); }
+.primary:disabled kbd { color: var(--text-3); background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.06); border-bottom-color: rgba(0,0,0,0.35); }
+.primary:not(:disabled) { animation: armed 0.5s var(--spring); } /* small "ready" pop when the first file lands */
+@keyframes armed { from { transform: scale(0.94); filter: brightness(1.25); } }
 .primary:disabled::after, .ghost:disabled::after { display: none; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -256,26 +287,35 @@ option { background: #2c2c2e; }
 
 /* ---------------------------------------------------------------- Converter: hero (empty state) */
 .tool-convert, .tool-download, .tool-extract, .tool-trim { padding: 0 26px 0 22px; }
+/* Drop zone: subtle dashed outline. A file dragged over it (body.drop-zone, set by app.js) lights it up
+   in electric blue with a tinted fill and a 1% grow. */
 .hero {
   flex: 1;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  margin-bottom: 20px; border: 0; border-radius: 28px;
+  margin-bottom: 20px; border: 1px dashed rgba(255,255,255,0.15); border-radius: 28px;
   cursor: pointer; outline: none;
-  transition: transform 0.6s var(--spring), box-shadow 0.5s;
+  transition: transform 0.35s var(--ease), box-shadow 0.35s, border-color 0.25s, background-color 0.25s;
 }
-.hero::after { /* animated prismatic ring on hover / drag */
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
-  background: conic-gradient(from var(--a), #0a84ff, #bf5af2, #ff9f0a, #5ac8fa, #0a84ff);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  opacity: 0; transition: opacity 0.5s; animation: spin 5s linear infinite;
-}
+.hero::before { display: none; } /* the dashed border replaces the gradient rim here */
 @keyframes spin { to { --a: 360deg; } }
-.hero:hover::after, body.dragging .hero::after, .hero:focus-visible::after { opacity: 0.9; }
-.hero:hover { transform: scale(1.004); box-shadow: var(--float), var(--surface-hi), 0 0 90px -20px rgba(10,132,255,0.35); }
+.hero:hover { border-color: rgba(255,255,255,0.28); box-shadow: var(--float), var(--surface-hi), 0 0 90px -20px rgba(10,132,255,0.3); }
+.hero:focus-visible { border-color: var(--accent); }
 .hero:active { transform: scale(0.994); transition-duration: 0.15s; }
+body.drop-zone .hero {
+  border-color: #0a84ff; transform: scale(1.01);
+  background-color: rgba(10,132,255,0.08);
+  box-shadow: var(--float), var(--surface-hi), 0 0 0 4px rgba(10,132,255,0.14), 0 0 80px -10px rgba(10,132,255,0.45);
+}
 
 .stack { position: relative; width: 210px; height: 120px; margin-bottom: 24px; }
+/* Soft coloured halo behind the illustration, so the cards float in light instead of on flat black. */
+.stack::before {
+  content: ""; position: absolute; left: 50%; top: 52%; width: 300px; height: 190px; transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgba(10,132,255,0.34), rgba(191,90,242,0.18) 55%, transparent);
+  filter: blur(14px); pointer-events: none;
+  transition: opacity 0.4s, transform 0.6s var(--spring);
+}
+.hero:hover .stack::before, body.drop-zone .stack::before { transform: translate(-50%, -50%) scale(1.12); }
 .card {
   position: absolute; left: 50%; top: 8px;
   width: 86px; height: 100px; margin-left: -43px;
@@ -296,9 +336,9 @@ option { background: #2c2c2e; }
 .card:nth-child(3) { transform: translateX(48px) rotate(12deg) scale(0.9); }
 .card:nth-child(2) { transform: translateY(-4px); z-index: 1; animation: float 5s ease-in-out infinite; }
 @keyframes float { 50% { translate: 0 -5px; } }
-.hero:hover .card:nth-child(1), body.dragging .card:nth-child(1) { transform: translateX(-74px) translateY(4px) rotate(-19deg) scale(0.92); }
-.hero:hover .card:nth-child(3), body.dragging .card:nth-child(3) { transform: translateX(74px) translateY(4px) rotate(19deg) scale(0.92); }
-.hero:hover .card:nth-child(2), body.dragging .card:nth-child(2) { transform: translateY(-12px) scale(1.06); }
+.hero:hover .card:nth-child(1), body.drop-zone .card:nth-child(1) { transform: translateX(-74px) translateY(4px) rotate(-19deg) scale(0.92); }
+.hero:hover .card:nth-child(3), body.drop-zone .card:nth-child(3) { transform: translateX(74px) translateY(4px) rotate(19deg) scale(0.92); }
+.hero:hover .card:nth-child(2), body.drop-zone .card:nth-child(2) { transform: translateY(-12px) scale(1.06); }
 .hero-title { font: 650 27px/1.2 var(--font-display); letter-spacing: -0.03em; }
 .hero-sub { color: var(--text-2); display: flex; align-items: center; gap: 6px; }
 .hero-sub kbd:first-child { margin-left: 4px; }
@@ -309,12 +349,18 @@ option { background: #2c2c2e; }
   background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 0.5px rgba(255,255,255,0.08);
   color: var(--text-2); font-size: 12px;
-  transition: transform 0.5s var(--spring);
+  transition: transform 0.5s var(--spring), background 0.25s, box-shadow 0.25s;
 }
 .hero:hover .groups > span { transform: translateY(-2px); }
 .hero:hover .groups > span:nth-child(2) { transition-delay: 0.04s; }
 .hero:hover .groups > span:nth-child(3) { transition-delay: 0.08s; }
-.groups b { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+/* Each format card reacts on its own: lifts, brightens and picks up its kind's colour on the edge. */
+.groups > span:hover { transform: translateY(-4px) !important; transition-delay: 0s !important; background: linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.04)); }
+.groups > span:has(b.image):hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(100,210,255,0.45), 0 10px 24px -10px rgba(100,210,255,0.5); }
+.groups > span:has(b.audio):hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(255,159,10,0.45), 0 10px 24px -10px rgba(255,159,10,0.5); }
+.groups > span:has(b.video):hover { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(191,90,242,0.5), 0 10px 24px -10px rgba(191,90,242,0.55); }
+.groups b { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.groups b svg { width: 14px; height: 14px; stroke-width: 2; flex: none; }
 b.image { color: var(--c-image); } b.audio { color: var(--c-audio); } b.video { color: var(--c-video); }
 
 /* ---------------------------------------------------------------- Queues (shared by both tools) */
@@ -524,6 +570,9 @@ b.image { color: var(--c-image); } b.audio { color: var(--c-audio); } b.video { 
 .dl-empty-icon::before, .dl-missing-icon::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(160deg, rgba(255,255,255,0.45), transparent 45%); }
 .dl-missing-icon { background: linear-gradient(150deg, #ffe066, #ff9f0a); box-shadow: 0 18px 36px -10px rgba(255,159,10,0.7), inset 0 1px 0 rgba(255,255,255,0.55); }
 .dl-empty-icon svg, .dl-missing-icon svg { position: relative; width: 30px; height: 30px; stroke-width: 2; }
+/* Halo in the icon's own colour (download / scissors / warning) so the big icons glow out of the glass. */
+.dl-empty-icon { filter: drop-shadow(0 0 22px rgba(10,132,255,0.55)) drop-shadow(0 0 48px rgba(94,92,230,0.3)); }
+.dl-missing-icon { filter: drop-shadow(0 0 22px rgba(255,159,10,0.5)) drop-shadow(0 0 48px rgba(255,159,10,0.22)); }
 .row-btns { display: flex; gap: 8px; margin-top: 16px; }
 .dl-missing { display: none; }
 .tool-download.missing > :not(.dl-missing):not(.actionbar) { display: none !important; }

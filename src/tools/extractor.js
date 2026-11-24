@@ -5,7 +5,7 @@ Tools.extract = QueueTool({
   label: 'ext.label', subtitle: 'ext.subtitle', go: 'ext.go', notify: 'ext.notify',
   hero: {
     cards: ['video', 'audio', 'video'], title: 'ext.hero',
-    groups: [['video', 'ext.in', 'MP4 · MKV · MOV · WebM · AVI'], ['audio', 'ext.out', 'WAV · MP3 · FLAC · M4A'], ['image', 'ext.clean', 'ext.cleanList']],
+    groups: [['video', 'ext.in', 'MP4 · MKV · MOV · WebM · AVI'], ['audio', 'ext.out', 'WAV · MP3 · FLAC · M4A'], ['image', 'ext.clean', 'ext.cleanList', 'sliders']],
   },
   accept: (info) => info.kind === 'video' || info.kind === 'audio',
   targets: () => ['wav', 'mp3', 'flac', 'm4a'],
