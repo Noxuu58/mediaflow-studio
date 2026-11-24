@@ -271,6 +271,7 @@ const ADVANCED = {
   aiHeight: ['auto', '720', '1080', '1440', '2160'],
   aiFps: ['auto', '24', '25', '30', '50', '60', '120', '180', '240'],
   aiModel: ['auto', 'fast', 'quality'],
+  aiScale: ['auto', '2', '3', '4'], // images: ×2 / ×3 / ×4
 };
 const TONEMAP = 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv';
 const aiRequested = (adv = {}) => ['aiHeight', 'aiFps'].some((k) => adv[k] && adv[k] !== 'auto');
@@ -383,6 +384,7 @@ function buildArgs(src, info, s, gpu) {
 // output: progress 0-90 % is the AI work (onProgress gets a stage label), 90-100 % the final encode.
 async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
   const kind = kindOf(src);
+  if (kind === 'image' && preset === 'upscale') return upscaleImage(src, settingsFor(preset, adv), outDir, onProgress, id);
   if (kind !== 'video' && !(kind === 'audio' && preset === 'audio')) throw new Error('UNSUPPORTED');
   const s = settingsFor(preset, adv);
   let info = await probe(src, { thumb: false });
@@ -411,6 +413,28 @@ async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
     return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, ext), tries, report, info.duration);
   } finally {
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+}
+
+// AI Enhance on a photo: Real-ESRGAN ×2 / ×3 / ×4 (src/ai.js), saved in the source format ("photo Upscaled.jpg").
+async function upscaleImage(src, s, outDir, onProgress, id) {
+  const ai = require('./ai');
+  const info = await probe(src, { thumb: false });
+  if (!info.video?.width) throw new Error('UNSUPPORTED');
+  const check = await ai.detect(FFMPEG);
+  if (!check.available) throw new Error(check.reason === 'ENGINES' ? 'AI_MISSING' : `AI_${check.reason}`);
+  const job = { aborted: false, procs: new Set() };
+  const key = id ?? Symbol('job');
+  jobs.set(key, job);
+  let up;
+  try {
+    up = await ai.upscaleImage(src, info.video, { scale: s.aiScale || 4, model: s.aiModel || 'fast' }, { FFMPEG, job, onProgress: (x) => onProgress(x * 0.95, 'upscale') });
+  } finally { if (jobs.get(key) === job) jobs.delete(key); }
+  try {
+    const target = ext(src) === 'jpeg' ? 'jpg' : ext(src);
+    return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, target), [['-i', up.file, ...encodeArgs(src, target)]], (x) => onProgress(0.95 + x * 0.05, 'encode'));
+  } finally {
+    fs.rmSync(up.tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
 

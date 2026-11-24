@@ -854,8 +854,8 @@ body.dragging .drop-ring { transform: scale(1); }
 .set-row small { font-size: 11.5px; color: var(--text-3); }
 .set-row select { width: 250px; flex: none; text-transform: none; letter-spacing: 0; }
 .set-ai { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: -4px 0 4px; }
-.chip.ok { color: #7ef0a0; background: rgba(48,209,88,0.1); box-shadow: inset 0 0 0 0.5px rgba(48,209,88,0.45); }
-.chip.bad { color: #ffb4ae; background: rgba(255,69,58,0.1); box-shadow: inset 0 0 0 0.5px rgba(255,69,58,0.45); }
+.modal .chip.ok { color: #7ef0a0; background: rgba(48,209,88,0.1); box-shadow: inset 0 0 0 0.5px rgba(48,209,88,0.45); }
+.modal .chip.bad { color: #ffb4ae; background: rgba(255,69,58,0.1); box-shadow: inset 0 0 0 0.5px rgba(255,69,58,0.45); }
 .modal-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.08); }
 .modal-foot small { color: var(--text-3); font-size: 11.5px; }
 .switch {

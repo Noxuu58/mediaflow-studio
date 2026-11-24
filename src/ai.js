@@ -225,4 +225,28 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
   }
 }
 
-module.exports = { plan, enhance, detect, devices, setGpu, available, hasVulkan, aiError, CHUNK };
+// Photo / image upscaling: one Real-ESRGAN pass, then an exact ×scale resize (the "Best quality" model is ×4 only).
+// Returns { file, tmp }: a PNG at the final size (alpha kept) and the folder to delete. MAX_SIDE keeps the result
+// openable everywhere (WebP stops at 16383 px) and within reach of the GPU.
+const MAX_SIDE = 16383;
+async function upscaleImage(src, { width, height }, { scale = 4, model = 'fast' }, { FFMPEG, job, onProgress = () => {} }) {
+  if (Math.max(width, height) * scale > MAX_SIDE) throw new Error(`IMAGE_TOO_BIG:${MAX_SIDE}`);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mediaflow-ai-'));
+  const f = (n) => path.join(tmp, n);
+  try {
+    // Any source (JPEG, WebP, 16-bit / palette PNG…) → plain 8-bit PNG, alpha kept, for the AI engine.
+    await run(job, FFMPEG, ['-v', 'error', '-i', src, '-frames:v', '1', '-pix_fmt', 'rgba', f('in.png')]);
+    const s = model === 'quality' ? 4 : scale;
+    await run(job, ESRGAN, ['-i', f('in.png'), '-o', f('up.png'), '-n', model === 'quality' ? 'realesrgan-x4plus' : 'realesr-animevideov3',
+      '-s', String(s), '-m', path.join(path.dirname(ESRGAN), 'models'), '-f', 'png', ...gpuArgs()],
+    (out) => { const m = /(\d+(?:\.\d+)?)%/.exec(out); if (m) onProgress(Math.min(0.95, Number(m[1]) / 100)); });
+    if (s === scale) return { file: f('up.png'), tmp };
+    await run(job, FFMPEG, ['-v', 'error', '-i', f('up.png'), '-vf', `scale=${width * scale}:${height * scale}:flags=lanczos`, f('out.png')]);
+    return { file: f('out.png'), tmp };
+  } catch (e) {
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    throw aiError(e);
+  }
+}
+
+module.exports = { plan, enhance, upscaleImage, MAX_SIDE, detect, devices, setGpu, available, hasVulkan, aiError, CHUNK };

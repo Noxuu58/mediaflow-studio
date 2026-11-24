@@ -84,6 +84,20 @@ test('AI on the GPU', async (t) => {
     assert.ok(Math.abs(n - 120) <= 1, `frames ${n}`);
   });
 
+  await t.test('images: ×2 / ×3 / ×4 in their own format, transparency kept, size limit', async () => {
+    ff('-f', 'lavfi', '-i', 'testsrc2=s=160x120', '-frames:v', '1', s('photo.jpg'));
+    ff('-f', 'lavfi', '-i', "testsrc2=s=100x80,format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lt(X,50),255,0)'", '-frames:v', '1', s('logo.png'));
+    const jpg = await encode(s('photo.jpg'), 'upscale', { aiScale: '4' }, out);
+    assert.match(path.basename(jpg), /^photo Upscaled\.jpg$/);
+    assert.deepStrictEqual([(await probe(jpg)).video.width, (await probe(jpg)).video.height], [640, 480]);
+    const png = await encode(s('logo.png'), 'upscale', { aiScale: '3', aiModel: 'quality' }, out); // ×4 model, then exact ×3
+    assert.deepStrictEqual([(await probe(png)).video.width, (await probe(png)).video.height], [300, 240]);
+    const alpha = execFileSync(FFMPEG, ['-v', 'error', '-i', png, '-vf', 'crop=1:1:250:120,format=rgba', '-f', 'rawvideo', '-']);
+    assert.strictEqual(alpha[3], 0, 'transparent half stays transparent');
+    ff('-f', 'lavfi', '-i', 'color=gray:s=5000x100', '-frames:v', '1', s('wide.png'));
+    await assert.rejects(encode(s('wide.png'), 'upscale', { aiScale: '4' }, out), /IMAGE_TOO_BIG/);
+  });
+
   await t.test('interpolate 15 → 240 fps (high-frame-rate target, RIFE ×16)', async () => {
     const res = await encode(s('small15.mp4'), 'youtube', { aiFps: '240', gpu: 'on' }, out);
     assert.strictEqual((await probe(res)).video.fps, 240);
