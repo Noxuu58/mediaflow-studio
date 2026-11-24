@@ -3,7 +3,7 @@
 //   extract PNG frames → Real-ESRGAN (if the target is larger) → RIFE (if the target fps is higher)
 //   → encode the chunk (GPU encoder when available) → delete the frames.
 // Chunks are concatenated, the source audio is copied, and the result feeds the normal preset encode.
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -14,6 +14,13 @@ const ESRGAN = AI_DIR && path.join(AI_DIR, 'realesrgan', 'realesrgan-ncnn-vulkan
 const RIFE = AI_DIR && path.join(AI_DIR, 'rife', 'rife-ncnn-vulkan.exe');
 const CHUNK = 48;
 const available = () => Boolean(ESRGAN && RIFE && fs.existsSync(RIFE));
+const SYS32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+const hasVulkan = () => fs.existsSync(path.join(SYS32, 'vulkan-1.dll')); // the loader every Vulkan driver installs
+
+// Which Vulkan GPU runs the AI: 'auto' (ncnn picks, dedicated card first) or a device index from devices().
+let gpuId = 'auto';
+const setGpu = (id) => { gpuId = /^\d{1,2}$/.test(String(id)) ? String(id) : 'auto'; };
+const gpuArgs = () => (gpuId === 'auto' ? [] : ['-g', gpuId]);
 
 // What has to happen for a source → target change. Lower targets are plain downscale / frame drop (no AI).
 function plan(info, { height = 'source', fps = 'source', model = 'fast' } = {}) {
@@ -46,7 +53,7 @@ function run(job, bin, args, onOutput) {
       if (job.aborted) return reject(new Error('CANCELLED'));
       if (code === 0) return resolve(err);
       const line = err.trim().split(/\r?\n/).filter((l) => l && !/^\d+\.\d+%$/.test(l.trim())).pop() || `code ${code}`;
-      reject(new Error(line));
+      reject(Object.assign(new Error(line), { log: err }));
     });
   });
 }
@@ -54,20 +61,82 @@ function run(job, bin, args, onOutput) {
 const frames = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.png')).sort() : []);
 const fresh = (dir) => { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); };
 
-// Which GPU ncnn/Vulkan will use (name printed by Real-ESRGAN on start), cached. null = no usable GPU.
-let gpuInfo;
-function detect(FFMPEG) {
-  return (gpuInfo ||= (async () => {
-    if (!available()) return { available: false };
+// Vulkan driver errors → short codes the UI explains (see err.AI_* in i18n.js).
+function aiError(e) {
+  const m = `${e.message} ${e.log || ''}`;
+  if (/invalid gpu device/i.test(m)) return new Error('AI_GPU_GONE');
+  if (/out of (device |host )?memory|OUT_OF_(DEVICE|HOST)_MEMORY|vkAllocateMemory failed/i.test(m)) return new Error('AI_VRAM');
+  if (/DEVICE_LOST|vkQueueSubmit failed|vkWaitForFences failed/i.test(m)) return new Error('AI_GPU_LOST');
+  if (/vkCreateInstance failed|no vulkan device|vulkan-1\.dll/i.test(m)) return new Error('AI_NO_GPU');
+  return e;
+}
+
+const tinyPng = (job, FFMPEG, file) => run(job, FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=gray:s=32x32', '-frames:v', '1', file]);
+const esrganTest = (job, tmp, extra) => run(job, ESRGAN, ['-i', path.join(tmp, 'a.png'), '-o', path.join(tmp, 'b.png'), '-n', 'realesr-animevideov3', '-s', '2', '-m', path.join(path.dirname(ESRGAN), 'models'), ...extra]);
+const listed = (log) => [...new Map([...String(log).matchAll(/^\[(\d+) ([^\]]+)\]/gm)].map((m) => [m[1], m[2].trim()]))].map(([id, name]) => ({ id, name }));
+
+// Versions from vulkaninfo (installed with the GPU driver on Windows). null when it isn't there.
+function vulkanInfo() {
+  const bin = path.join(SYS32, 'vulkaninfo.exe');
+  if (!fs.existsSync(bin)) return Promise.resolve(null);
+  return new Promise((resolve) => execFile(bin, ['--summary'], { windowsHide: true, timeout: 10000 }, (_e, out = '') => {
+    const gpus = String(out).split(/^GPU\d+:/m).slice(1).map((b) => ({
+      name: /deviceName\s*=\s*(.+)/.exec(b)?.[1].trim(), api: /apiVersion\s*=\s*([\d.]+)/.exec(b)?.[1],
+      type: /deviceType\s*=\s*PHYSICAL_DEVICE_TYPE_(\w+)/.exec(b)?.[1].toLowerCase(), driver: /driverInfo\s*=\s*(.+)/.exec(b)?.[1].trim(),
+    }));
+    resolve({ version: /Vulkan Instance Version:\s*([\d.]+)/.exec(out)?.[1] || null, gpus });
+  }));
+}
+
+// Every Vulkan GPU the AI engines can use (id = ncnn's -g index), with versions when known. Cached; fresh = re-scan.
+let devCache;
+function devices(FFMPEG, fresh = false) {
+  if (fresh) devCache = null;
+  return (devCache ||= (async () => {
+    const out = { engines: available(), vulkan: hasVulkan(), version: null, devices: [] };
+    if (!out.engines || !out.vulkan) return out;
     const job = { aborted: false, procs: new Set() };
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mediaflow-ai-'));
     try {
-      await run(job, FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=gray:s=32x32', '-frames:v', '1', path.join(tmp, 'a.png')]);
-      const log = await run(job, ESRGAN, ['-i', path.join(tmp, 'a.png'), '-o', path.join(tmp, 'b.png'), '-n', 'realesr-animevideov3', '-s', '2', '-m', path.join(path.dirname(ESRGAN), 'models')]);
-      const name = /\[0 ([^\]]+)\]/.exec(log)?.[1]?.trim();
-      return { available: fs.existsSync(path.join(tmp, 'b.png')), gpu: name || null };
-    } catch { return { available: false }; } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+      await tinyPng(job, FFMPEG, path.join(tmp, 'a.png'));
+      // An out-of-range -g makes ncnn list every device, then stop before doing any work.
+      const log = await esrganTest(job, tmp, ['-g', '99']).catch((e) => e.log || '');
+      const vk = await vulkanInfo();
+      out.version = vk?.version || null;
+      const left = [...(vk?.gpus || [])];
+      out.devices = listed(log).map((d) => {
+        const i = left.findIndex((g) => g.name === d.name);
+        const g = i >= 0 ? left.splice(i, 1)[0] : {};
+        return { ...d, api: g.api || null, type: g.type || null, driver: g.driver || null };
+      });
+    } catch {} finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    return out;
   })());
+}
+
+// Can the chosen GPU run the AI? A real 32×32 upscale (≈1 s), cached per GPU; fresh = test again.
+// { available, gpu: name, id, reason } — reason: ENGINES | NO_VULKAN | NO_GPU | GPU_GONE | FAILED.
+const checks = new Map();
+function detect(FFMPEG, fresh = false) {
+  const id = gpuId;
+  if (fresh) checks.delete(id);
+  if (!checks.has(id)) checks.set(id, (async () => {
+    if (!available()) return { available: false, reason: 'ENGINES' };
+    if (!hasVulkan()) return { available: false, reason: 'NO_VULKAN' };
+    const job = { aborted: false, procs: new Set() };
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mediaflow-ai-'));
+    let log = '';
+    try {
+      await tinyPng(job, FFMPEG, path.join(tmp, 'a.png'));
+      log = await esrganTest(job, tmp, gpuArgs()).catch((e) => e.log || e.message);
+      const devs = listed(log);
+      const name = (devs.find((d) => d.id === id) || devs[0])?.name || null;
+      if (fs.existsSync(path.join(tmp, 'b.png'))) return { available: true, gpu: name, id };
+      if (/invalid gpu device/i.test(log)) return { available: false, reason: 'GPU_GONE', id };
+      return { available: false, reason: devs.length ? 'FAILED' : 'NO_GPU', gpu: name, id };
+    } catch { return { available: false, reason: 'FAILED', id }; } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  })());
+  return checks.get(id);
 }
 
 // Lossless-looking intermediate encode for a chunk (GPU when possible); the preset encode comes after.
@@ -119,7 +188,7 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
       if (!count) break;
       if (p.upscale) {
         const model = p.model === 'quality' ? 'realesrgan-x4plus' : 'realesr-animevideov3';
-        await run(job, ESRGAN, ['-i', cur, '-o', dir('up'), '-n', model, '-s', String(p.scale), '-m', path.join(path.dirname(ESRGAN), 'models'), '-f', 'png'],
+        await run(job, ESRGAN, ['-i', cur, '-o', dir('up'), '-n', model, '-s', String(p.scale), '-m', path.join(path.dirname(ESRGAN), 'models'), '-f', 'png', ...gpuArgs()],
           (out) => { const m = /(\d+(?:\.\d+)?)%/.exec(out); if (m) done('upscale', Math.min(1, ((frames(dir('up')).length) + Number(m[1]) / 100) / count)); });
         cur = dir('up');
         done('upscale');
@@ -127,7 +196,7 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
       if (p.mult > 1) {
         const keep = (last ? count : count - 1) * p.mult; // drop what belongs to the next chunk
         const uhd = p.upscale ? p.srcH * p.scale >= 1440 : p.srcH >= 1440;
-        await run(job, RIFE, ['-i', cur, '-o', dir('mid'), '-m', path.join(path.dirname(RIFE), 'rife-v4.6'), '-n', String(count * p.mult), ...(uhd ? ['-u'] : [])]);
+        await run(job, RIFE, ['-i', cur, '-o', dir('mid'), '-m', path.join(path.dirname(RIFE), 'rife-v4.6'), '-n', String(count * p.mult), ...(uhd ? ['-u'] : []), ...gpuArgs()]);
         frames(dir('mid')).slice(keep).forEach((f) => fs.rmSync(path.join(dir('mid'), f)));
         cur = dir('mid');
         done('interpolate');
@@ -152,8 +221,8 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
     return { file: dir('enhanced.mkv'), tmp };
   } catch (e) {
     fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-    throw e;
+    throw aiError(e);
   }
 }
 
-module.exports = { plan, enhance, detect, available, CHUNK };
+module.exports = { plan, enhance, detect, devices, setGpu, available, hasVulkan, aiError, CHUNK };

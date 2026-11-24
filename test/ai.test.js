@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const ai = require('../src/ai');
-const { encode, cancel, probe, FFMPEG } = require('../src/convert');
+const { encode, cancel, probe, FFMPEG, detectGpu, encoders, setEncoder } = require('../src/convert');
 
 const info = (height, fps, extra = {}) => ({ video: { width: Math.round(height * 16 / 9), height, fps, baseFps: fps, rotation: 0, ...extra } });
 
@@ -22,12 +22,41 @@ test('plan: AI only when the target is higher than the source', () => {
   assert.strictEqual(ai.plan(info(1080, 29.97), { fps: 30 }).ai, false); // same rate: nothing to invent
   assert.strictEqual(ai.plan(info(1080, 30, { rotation: -90, width: 1080, height: 1920 }), { height: 1080 }).upscale, false); // portrait phone clip
 });
+test('Vulkan / driver failures become clear error codes', () => {
+  const fail = (msg, log = '') => ai.aiError(Object.assign(new Error(msg), { log })).message;
+  assert.strictEqual(fail('code 255', '[0 GPU] queueC=0 vkAllocateMemory failed'), 'AI_VRAM');
+  assert.strictEqual(fail('vkQueueSubmit failed -4'), 'AI_GPU_LOST');
+  assert.strictEqual(fail('invalid gpu device'), 'AI_GPU_GONE');
+  assert.strictEqual(fail('vkCreateInstance failed -9'), 'AI_NO_GPU');
+  assert.strictEqual(fail('CANCELLED'), 'CANCELLED'); // anything else passes through
+});
+
+test('Settings: video encoder choice', async () => {
+  try {
+    setEncoder('cpu');
+    assert.strictEqual(await detectGpu(), null);
+    setEncoder('nope'); // unknown value = auto
+    assert.deepStrictEqual(await detectGpu(), (await encoders())[0] || null);
+  } finally { setEncoder('auto'); }
+});
+
 function pick({ upscale, scale, mult, ai: a }) { return { upscale, scale, mult, ai: a }; }
 
 test('AI on the GPU', async (t) => {
   const gpu = await ai.detect(FFMPEG);
   if (!gpu.available) return t.skip('no Vulkan GPU / AI engines here');
   console.log('  AI GPU:', gpu.gpu);
+
+  await t.test('lists the Vulkan GPUs; a card that is gone gives a clear reason', async () => {
+    const hw = await ai.devices(FFMPEG);
+    assert.ok(hw.vulkan && hw.devices.length >= 1 && hw.devices[0].name, JSON.stringify(hw));
+    try {
+      ai.setGpu(hw.devices[0].id);
+      assert.strictEqual((await ai.detect(FFMPEG)).available, true);
+      ai.setGpu('42');
+      assert.strictEqual((await ai.detect(FFMPEG)).reason, 'GPU_GONE');
+    } finally { ai.setGpu('auto'); }
+  });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-'));
   const out = path.join(dir, 'out');
   fs.mkdirSync(out);

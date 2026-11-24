@@ -61,6 +61,8 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 | | Also |
 | :-- | :-- |
+| ⚙️ | **Settings** — choose the graphics card for AI and the video encoder (NVENC / Quick Sync / AMF / CPU), see your Vulkan version, keep the PC awake during long jobs |
+| 🩺 | Clear messages when a graphics card can't run the AI — with a link to the right driver |
 | 🌍 | English & French interface |
 | 🔔 | Windows notifications + taskbar progress |
 | 🔊 | Soft UI sounds (one click to mute) |
@@ -97,6 +99,7 @@ Sites change often: if a link stops working, click **Update** at the bottom of t
 | <kbd>Ctrl</kbd> + <kbd>O</kbd> | Add files |
 | <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Start (convert · extract · export · download) |
 | <kbd>Esc</kbd> | Cancel |
+| <kbd>Ctrl</kbd> + <kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd> + <kbd>V</kbd> | Paste a link (Downloader) |
 | <kbd>Space</kbd> | Play / pause (Trimmer) |
 | <kbd>I</kbd> · <kbd>O</kbd> | Set in / out point (Trimmer) |
@@ -154,10 +157,12 @@ src/
   i18n.js           translations (en, fr)
   sfx.js            UI sounds, synthesized (no audio files)
   app.js            sidebar, navigation, drag & drop, shared helpers
+  settings.js       Settings panel (graphics card, encoder, Vulkan, keep awake)
+  ai.js             AI engine — Real-ESRGAN + RIFE (ncnn / Vulkan), GPU detection
   styles.css        the whole design system
   tools/
     queue.js        reusable file queue (Converter + Audio Extractor)
-    converter.js · downloader.js · trimmer.js · extractor.js
+    converter.js · downloader.js · trimmer.js · extractor.js · enhancer.js
 build/              icon, installer artwork, installer.nsh
 scripts/            fetch-ytdlp.js
 test/               node:test suites

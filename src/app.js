@@ -159,6 +159,24 @@ const App = (() => {
     } // a silent startup check that fails (offline…) stays silent
   }
 
+  // Settings (stored here, applied in the main process): video encoder, AI graphics card, keep awake.
+  const prefs = () => ({ encoder: store.get('pref.encoder') || 'auto', aiGpu: store.get('pref.aiGpu') || 'auto', keepAwake: store.get('pref.awake') !== '0' });
+  const prefsReady = window.api.setPrefs(prefs());
+  function setPref(k, v) {
+    store.set(k, v);
+    return window.api.setPrefs(prefs()).then(() => { gpuBadge(); dispatchEvent(new Event('mf-prefs')); });
+  }
+  // Sidebar GPU badge: green dot + "NVENC ready" (or Quick Sync / AMF), grey dot + "CPU encoding" otherwise.
+  function gpuBadge() {
+    window.api.gpu().then((g) => {
+      const short = g && { h264_nvenc: 'NVENC', h264_qsv: 'Quick Sync', h264_amf: 'AMF' }[g.h264];
+      $('#gpu-status').classList.remove('ok', 'cpu');
+      $('#gpu-status').classList.add(g ? 'ok' : 'cpu');
+      $('#gpu-label').textContent = g ? t('gpu.ready', { v: short }) : t('gpu.cpu');
+      $('#gpu-status').title = g ? t('gpu.on', { v: g.vendor }) : t('gpu.off');
+    });
+  }
+
   function start() {
     I18n.apply(document);
     $('#nav').setAttribute('aria-label', t('app.tools'));
@@ -179,13 +197,7 @@ const App = (() => {
     $('#updates').onclick = () => checkUpdates(true);
     $('.up-close').onclick = () => { $('#update').hidden = true; }; // a download keeps going in the background
     window.api.version().then((v) => { $('#updates').title = `${t('up.check')} · v${v}`; });
-    // Sidebar GPU badge: green dot + "NVENC ready" (or Quick Sync / AMF), grey dot + "CPU encoding" otherwise.
-    window.api.gpu().then((g) => {
-      const short = g && { h264_nvenc: 'NVENC', h264_qsv: 'Quick Sync', h264_amf: 'AMF' }[g.h264];
-      $('#gpu-status').classList.add(g ? 'ok' : 'cpu');
-      $('#gpu-label').textContent = g ? t('gpu.ready', { v: short }) : t('gpu.cpu');
-      $('#gpu-status').title = g ? t('gpu.on', { v: g.vendor }) : t('gpu.off');
-    });
+    prefsReady.then(gpuBadge);
     setTimeout(() => checkUpdates(false), 4000); // quietly, once the window has settled
     show(store.get('tool'));
     requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready')));
@@ -225,9 +237,9 @@ const App = (() => {
     if (paths.length) active?.onDrop?.(paths);
     else active?.onDropText?.(e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'));
   });
-  addEventListener('keydown', (e) => active?.onKey?.(e));
+  addEventListener('keydown', (e) => { if (!document.body.classList.contains('modal-open')) active?.onKey?.(e); });
   addEventListener('resize', moveGlider);
   addEventListener('DOMContentLoaded', start);
 
-  return { register: (x) => tools.push(x), toast, notify, store, sfx, icons, fmt };
+  return { register: (x) => tools.push(x), toast, notify, store, sfx, icons, fmt, prefs, setPref, prefsReady };
 })();

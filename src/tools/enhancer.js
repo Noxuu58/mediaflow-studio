@@ -30,14 +30,26 @@
       id, src, target, outDir,
       advanced: target === '@upscale' ? { aiHeight: options.aiHeight, aiModel: options.aiModel } : { aiFps: options.aiFps },
     }),
-    // Show which GPU runs the AI (tested once, ≈1 s); without a Vulkan GPU the tool says so.
+    // Show which GPU runs the AI (tested once, ≈1 s). Without a usable Vulkan GPU, a callout explains why and
+    // offers the driver download + Settings. Re-checked when the AI graphics card is changed in Settings.
     onMount(root) {
       const chip = root.querySelector('.ai-status');
-      chip.textContent = t('ai.checking');
-      window.api.aiInfo().then((a) => {
+      const alert = document.createElement('div');
+      alert.className = 'ai-alert';
+      alert.hidden = true;
+      root.prepend(alert); // above the drop zone and the queue: visible before any file is added
+      const check = async () => {
+        chip.className = 'chip ai-status';
+        chip.textContent = t('ai.checking');
+        await App.prefsReady;
+        const [a, hw] = await Promise.all([window.api.aiInfo(), window.api.hardware()]);
         chip.textContent = a.available ? t('ai.ready', { v: a.gpu || 'Vulkan' }) : t('ai.none');
         chip.classList.add(a.available ? 'ok' : 'off');
-      });
+        alert.hidden = a.available;
+        if (!a.available) Settings.fillHelp(alert, a.reason, hw.vendors);
+      };
+      check();
+      addEventListener('mf-prefs', check);
     },
   });
 })();

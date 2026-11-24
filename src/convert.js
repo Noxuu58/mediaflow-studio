@@ -126,9 +126,13 @@ async function probe(src, { thumb = true } = {}) {
   };
 }
 
-// ---- GPU encoders: tried once (a tiny encode); the first that works is used for H.264 / HEVC.
+// ---- GPU encoders: each one tried once (a tiny encode). The preference (Settings) picks among those that work:
+// 'auto' = first of NVIDIA → Intel → AMD, a vendor id, or 'cpu' to never use the GPU.
+const ENCODERS = [['nvenc', 'NVIDIA NVENC', 'h264_nvenc', 'hevc_nvenc'], ['qsv', 'Intel Quick Sync', 'h264_qsv', 'hevc_qsv'], ['amf', 'AMD AMF', 'h264_amf', 'hevc_amf']];
+let encoderPref = 'auto';
+const setEncoder = (pref) => { encoderPref = ['auto', 'cpu', ...ENCODERS.map((e) => e[0])].includes(pref) ? pref : 'auto'; };
 let gpuCheck;
-function detectGpu() {
+function encoders() {
   const works = (enc) => new Promise((resolve) => {
     const p = spawn(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=black:s=256x256:r=30:d=0.2', '-c:v', enc, '-f', 'null', '-'], { windowsHide: true });
     const timer = setTimeout(() => p.kill(), 15000);
@@ -136,11 +140,17 @@ function detectGpu() {
     p.on('close', (code) => { clearTimeout(timer); resolve(code === 0); });
   });
   return (gpuCheck ||= (async () => {
-    for (const [vendor, h264, hevc] of [['NVIDIA NVENC', 'h264_nvenc', 'hevc_nvenc'], ['Intel Quick Sync', 'h264_qsv', 'hevc_qsv'], ['AMD AMF', 'h264_amf', 'hevc_amf']]) {
-      if (await works(h264)) return { vendor, h264, hevc: (await works(hevc)) ? hevc : null };
+    const list = [];
+    for (const [id, vendor, h264, hevc] of ENCODERS) {
+      if (await works(h264)) list.push({ id, vendor, h264, hevc: (await works(hevc)) ? hevc : null });
     }
-    return null;
+    return list;
   })());
+}
+async function detectGpu() {
+  if (encoderPref === 'cpu') return null;
+  const list = await encoders();
+  return list.find((e) => e.id === encoderPref) || list[0] || null;
 }
 
 // Timeline preview strip: evenly spaced video frames side by side, or the waveform of an audio file.
@@ -385,7 +395,8 @@ async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
       s.height = p.targetH; // exact target: AI already reached it when upscaling, plain downscale otherwise
       if (Math.abs(p.targetFps - p.srcFps) > 0.01) s.fps = p.targetFps; // drop frames, or resample RIFE's ×N to the target
       if (p.ai) {
-        if (!ai.available()) throw new Error('AI_MISSING');
+        const check = await ai.detect(FFMPEG); // clear message now, not after minutes of frame extraction
+        if (!check.available) throw new Error(check.reason === 'ENGINES' ? 'AI_MISSING' : `AI_${check.reason}`);
         const job = { aborted: false, procs: new Set() };
         const key = id ?? Symbol('job');
         jobs.set(key, job); // cancel(id) reaches the AI processes too
@@ -441,4 +452,4 @@ async function extract(src, opts = {}, outDir, onProgress = () => {}, id) {
   return job('', '', channels === 'mono' ? ['-ac', '1'] : []);
 }
 
-module.exports = { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };
+module.exports = { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, encoders, setEncoder, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };
