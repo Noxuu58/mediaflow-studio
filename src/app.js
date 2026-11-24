@@ -103,7 +103,6 @@ const App = (() => {
   function setMuted(m) {
     muted = m;
     store.set('muted', m ? '1' : '0');
-    document.body.classList.toggle('muted', m);
   }
 
   // shortcut: switching language reloads the window (queues are lost), so it is refused while jobs run.
