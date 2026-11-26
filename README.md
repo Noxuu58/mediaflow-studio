@@ -37,7 +37,7 @@ Install it in two clicks: everything is included, nothing else to set up.
 | ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. |
 | ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
 | 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
-| 🪄 | **AI Enhance** | Two modes, 100% local on your graphics card: **Upscaling** with Real-ESRGAN (videos 720p → 4K, **photos and images ×2 / ×3 / ×4** in PNG, JPG or WebP, transparency kept) and **Interpolation** with RIFE (smooth motion up to 240 fps — 60, 120, 180 or 240). Lower targets are a classic downscale / frame drop. |
+| 🪄 | **AI Enhance** | Two modes, 100% local on your graphics card: **Upscaling** with Real-ESRGAN (videos 720p → 4K — even at the same size it rebuilds detail and removes compression blocks — and **photos and images ×2 / ×3 / ×4** in PNG, JPG or WebP, transparency kept) and **Interpolation** with RIFE (smooth motion up to 240 fps — 60, 120, 180 or 240). Lower targets are a classic downscale / frame drop. |
 
 <div align="center">
 <img src="docs/screenshots/trimmer.png" alt="Trimmer" width="32%">
@@ -47,7 +47,7 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 <div align="center">
 <img src="docs/screenshots/ai-enhance.png" alt="AI Enhance — Upscaling (videos and images) and Interpolation on your GPU" width="90%">
-<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling for videos and images, RIFE interpolation, running locally on your GPU. Images show the size they will come out at before you start.</sub>
+<br><sub><b>AI Enhance</b> — Real-ESRGAN upscaling for videos and images, RIFE interpolation, running locally on your GPU. Each file shows what it will become before you start, and only the settings your files use are shown.</sub>
 </div>
 
 <div align="center">

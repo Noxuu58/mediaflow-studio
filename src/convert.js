@@ -267,7 +267,7 @@ const ADVANCED = {
   audio: ['auto', 'aac192', 'aac320', 'pcm16', 'pcm24', 'copy'],
   tracks: ['auto', 'first', 'all', 'mix'],
   gpu: ['auto', 'on', 'off'],
-  // AI Video Enhancement (src/ai.js): higher than the source = AI, lower = plain downscale / frame drop.
+  // AI Video Enhancement (src/ai.js): Upscaling always runs the AI; a lower frame rate is a plain frame drop.
   aiHeight: ['auto', '720', '1080', '1440', '2160'],
   aiFps: ['auto', '24', '25', '30', '50', '60', '120', '180', '240'],
   aiModel: ['auto', 'fast', 'quality'],
@@ -393,7 +393,7 @@ async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
   try {
     if (preset !== 'audio' && info.video && (s.aiHeight || s.aiFps)) {
       const ai = require('./ai');
-      const p = ai.plan(info, { height: s.aiHeight || 'source', fps: s.aiFps || 'source', model: s.aiModel || 'fast' });
+      const p = ai.plan(info, { height: s.aiHeight || 'source', fps: s.aiFps || 'source', model: s.aiModel || 'fast', restore: preset === 'upscale' });
       s.height = p.targetH; // exact target: AI already reached it when upscaling, plain downscale otherwise
       if (Math.abs(p.targetFps - p.srcFps) > 0.01) s.fps = p.targetFps; // drop frames, or resample RIFE's ×N to the target
       if (p.ai) {

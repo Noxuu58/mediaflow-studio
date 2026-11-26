@@ -10,7 +10,7 @@ const { encode, cancel, probe, FFMPEG, detectGpu, encoders, setEncoder } = requi
 
 const info = (height, fps, extra = {}) => ({ video: { width: Math.round(height * 16 / 9), height, fps, baseFps: fps, rotation: 0, ...extra } });
 
-test('plan: AI only when the target is higher than the source', () => {
+test('plan: a plain target only uses the AI when it is higher than the source', () => {
   assert.deepStrictEqual(pick(ai.plan(info(720, 30), { height: 1080 })), { upscale: true, scale: 2, mult: 1, ai: true });
   assert.deepStrictEqual(pick(ai.plan(info(480, 30), { height: 2160 })), { upscale: true, scale: 4, mult: 1, ai: true }); // ×4.5 → AI ×4 + lanczos
   assert.deepStrictEqual(pick(ai.plan(info(720, 30), { height: 1080, model: 'quality' })), { upscale: true, scale: 4, mult: 1, ai: true });
@@ -21,6 +21,19 @@ test('plan: AI only when the target is higher than the source', () => {
   assert.strictEqual(ai.plan(info(1080, 24), { fps: 180 }).mult, 8); // ×8 = 192, resampled to 180
   assert.strictEqual(ai.plan(info(1080, 29.97), { fps: 30 }).ai, false); // same rate: nothing to invent
   assert.strictEqual(ai.plan(info(1080, 30, { rotation: -90, width: 1080, height: 1920 }), { height: 1080 }).upscale, false); // portrait phone clip
+});
+test('plan: the Upscaling preset always runs the AI, even at the same or a lower size', () => {
+  const r = (h, height, model) => ai.plan(info(h, 30), { height, model, restore: true });
+  // 1080p → 1080p: AI ×2 at the source size (2160p), then back down to 1080p.
+  assert.deepStrictEqual(pick2(r(1080, 1080)), { upscale: true, scale: 2, inH: 1080, outH: 2160, ai: true });
+  // 4K → 1080p: frames brought to 1080p first, so the AI works at 2160p, not 8K.
+  assert.deepStrictEqual(pick2(r(2160, 1080)), { upscale: true, scale: 2, inH: 1080, outH: 2160, ai: true });
+  // "Best quality" is ×4 only: frames at half the target, ×4 = 2× the target.
+  assert.deepStrictEqual(pick2(r(1080, 1080, 'quality')), { upscale: true, scale: 4, inH: 540, outH: 2160, ai: true });
+  // A larger target works as before (no shrinking first).
+  assert.deepStrictEqual(pick2(r(720, 1080)), { upscale: true, scale: 2, inH: null, outH: 1440, ai: true });
+  // Interpolation (no restore) still leaves the resolution alone.
+  assert.strictEqual(ai.plan(info(1080, 30), { fps: 60 }).upscale, false);
 });
 test('Vulkan / driver failures become clear error codes', () => {
   const fail = (msg, log = '') => ai.aiError(Object.assign(new Error(msg), { log })).message;
@@ -41,6 +54,7 @@ test('Settings: video encoder choice', async () => {
 });
 
 function pick({ upscale, scale, mult, ai: a }) { return { upscale, scale, mult, ai: a }; }
+function pick2(p) { return { upscale: p.upscale, scale: p.scale, inH: p.inH, outH: p.outH, ai: p.ai }; }
 
 test('AI on the GPU', async (t) => {
   const gpu = await ai.detect(FFMPEG);
@@ -110,6 +124,36 @@ test('AI on the GPU', async (t) => {
     assert.deepStrictEqual([both.video.height, both.video.fps], [720, 25]); // RIFE ×2 = 30, resampled to 25
     const down = await probe(await encode(s('small15.mp4'), 'youtube', { aiFps: '24', gpu: 'on' }, out));
     assert.strictEqual(down.video.fps, 24);
+  });
+
+  // Image distance in dB (higher = closer): PSNR of two files, first frame of each.
+  const psnr = (a, b) => Number(/average:([\d.]+|inf)/.exec(spawnSync(FFMPEG, ['-hide_banner', '-i', a, '-i', b,
+    '-filter_complex', '[0:v][1:v]psnr', '-frames:v', '1', '-f', 'null', '-'], { encoding: 'utf8' }).stderr)?.[1]);
+  const frameAt = (f, n, png) => { ff('-i', f, '-vf', `select='eq(n,${n})'`, '-frames:v', '1', png); return png; };
+
+  // The bug in 1.2.7: a video already at the chosen size came out unchanged (plain re-encode in 3 s, no AI).
+  await t.test('Upscaling a soft video already at the target size runs the AI and makes it sharper', async () => {
+    // The "ugly" video: 360p detail stretched to 720p (soft edges everywhere).
+    ff('-f', 'lavfi', '-i', 'testsrc2=d=1:s=640x360:r=24', '-vf', 'scale=1280:720:flags=bicubic,gblur=sigma=1.2', '-c:v', 'libx264', '-crf', '16', s('soft720.mp4'));
+    const stages = new Set();
+    const res = await encode(s('soft720.mp4'), 'upscale', { aiHeight: '720', aiModel: 'quality' }, out, (p, stage) => stage && stages.add(stage));
+    const p = await probe(res);
+    assert.deepStrictEqual([p.video.width, p.video.height, frameCount(res)], [1280, 720, 24]);
+    assert.ok(stages.has('upscale'), `AI stage ran: ${[...stages]}`);
+    // Sharper: more edge energy (mean of a Sobel edge map) than the soft source. Synthetic bars gain ≈7 %; real footage far more.
+    const edges = (f) => Number(/YAVG=([\d.]+)/.exec(spawnSync(FFMPEG, ['-hide_banner', '-i', f, '-frames:v', '1', '-vf', 'format=gray,sobel,signalstats,metadata=print', '-f', 'null', '-'], { encoding: 'utf8' }).stderr)?.[1]);
+    const [before, after] = [edges(s('soft720.mp4')), edges(res)];
+    assert.ok(after > before * 1.04, `edge energy ${before} → ${after}`);
+  });
+
+  await t.test('interpolation invents real in-between frames (not copies)', async () => {
+    const own = path.join(dir, 'between');
+    fs.mkdirSync(own);
+    const res = await encode(s('small15.mp4'), 'interpolate', { aiFps: '30' }, own);
+    const [f20, f21, f22] = [20, 21, 22].map((n) => frameAt(res, n, path.join(own, `${n}.png`)));
+    // Frame 21 sits between source frames 10 and 11 (output frames 20 and 22): different from both, closer to each than they are to each other.
+    const [a, b, ends] = [psnr(f21, f20), psnr(f21, f22), psnr(f20, f22)];
+    assert.ok(a < 50 && b < 50 && a > ends && b > ends, `21↔20 ${a} dB, 21↔22 ${b} dB, 20↔22 ${ends} dB`);
   });
 
   await t.test('AI Enhance tool modes: Upscaling and Interpolation presets', async () => {

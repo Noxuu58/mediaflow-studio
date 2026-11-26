@@ -24,14 +24,34 @@
       { id: 'aiHeight', label: 'enh.res', type: 'select', value: '1080',
         choices: [['720', '720p (HD)'], ['1080', '1080p (Full HD)'], ['1440', '1440p (2K)'], ['2160', '2160p (4K)']] },
       { id: 'aiScale', label: 'enh.scale', type: 'select', value: '4', choices: [['2', '×2'], ['3', '×3'], ['4', '×4']] },
-      { id: 'aiModel', label: 'adv.ai.model', type: 'select', value: 'fast', choices: [['fast', 'adv.ai.fast'], ['quality', 'adv.ai.quality']] },
+      // Real-ESRGAN x4plus (real footage) first: the anime model barely changes filmed video.
+      { id: 'aiModel', label: 'adv.ai.model', type: 'select', value: 'quality', choices: [['quality', 'adv.ai.quality'], ['fast', 'adv.ai.fast']] },
       { id: 'aiFps', label: 'enh.fps', type: 'select', value: '60', choices: [['24', '24'], ['25', '25'], ['30', '30'], ['50', '50'], ['60', '60'], ['120', '120'], ['180', '180'], ['240', '240']] },
     ],
-    // Images: the size they will come out at (×2 / ×3 / ×4), flagged when it is past what the engine can save.
+    // Only the settings that apply to the files in the queue: video size for videos in Upscaling, ×2/×3/×4 for
+    // images, the frame rate for videos in Interpolation, and the AI model for anything upscaled.
+    shownOptions: (list) => {
+      const img = (it) => it.kind === 'image', up = list.filter((it) => it.target === '@upscale');
+      return new Set([
+        up.some((it) => !img(it)) && 'aiHeight', up.some(img) && 'aiScale', up.length && 'aiModel',
+        list.some((it) => it.target === '@interpolate') && 'aiFps',
+      ].filter(Boolean));
+    },
+    // What each file will become, checked against its own size / frame rate before anything runs.
     hints: (it, p, o) => {
-      if (it.kind !== 'image' || !p.video) return [];
-      const w = p.video.width * o.aiScale, h = p.video.height * o.aiScale, big = Math.max(w, h) > 16383; // ai.MAX_SIDE
-      return [{ text: `→ ${w}×${h}`, pro: !big, tip: big ? I18n.error({ message: 'IMAGE_TOO_BIG:16383' }) : t('enh.outSize') }];
+      if (!p.video) return [];
+      if (it.kind === 'image') {
+        const w = p.video.width * o.aiScale, h = p.video.height * o.aiScale, big = Math.max(w, h) > 16383; // ai.MAX_SIDE
+        return [{ text: `→ ${w}×${h}`, pro: !big, tip: big ? I18n.error({ message: 'IMAGE_TOO_BIG:16383' }) : t('enh.outSize') }];
+      }
+      const turned = Math.abs(p.video.rotation || 0) % 180 === 90;
+      const h = turned ? p.video.width : p.video.height, fps = p.video.baseFps || p.video.fps;
+      if (it.target === '@upscale') {
+        const to = Number(o.aiHeight);
+        return [{ text: `${h}p → ${to}p · ${t(to > h ? 'enh.hintUp' : 'enh.hintRestore')}`, pro: true, tip: t('enh.statusSub') }];
+      }
+      const to = Number(o.aiFps), same = to <= fps + 0.01;
+      return [{ text: same ? t('enh.hintFpsLow', { v: +fps.toFixed(2) }) : `${+fps.toFixed(2)} → ${to} fps`, pro: !same }];
     },
     // Each mode only uses its own target: resolution for Upscaling, frame rate for Interpolation.
     run: ({ id, src, target, outDir, options }) => window.api.convert({

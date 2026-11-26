@@ -1,6 +1,6 @@
 // AI Video Enhancement — Real-ESRGAN upscaling + RIFE frame interpolation (ncnn, Vulkan: NVIDIA / AMD / Intel).
 // The video is processed in chunks of CHUNK frames so disk use stays bounded even in 4K:
-//   extract PNG frames → Real-ESRGAN (if the target is larger) → RIFE (if the target fps is higher)
+//   extract PNG frames → Real-ESRGAN (Upscaling, or a larger target) → RIFE (if the target fps is higher)
 //   → encode the chunk (GPU encoder when available) → delete the frames.
 // Chunks are concatenated, the source audio is copied, and the result feeds the normal preset encode.
 const { spawn, execFile } = require('child_process');
@@ -22,19 +22,27 @@ let gpuId = 'auto';
 const setGpu = (id) => { gpuId = /^\d{1,2}$/.test(String(id)) ? String(id) : 'auto'; };
 const gpuArgs = () => (gpuId === 'auto' ? [] : ['-g', gpuId]);
 
-// What has to happen for a source → target change. Lower targets are plain downscale / frame drop (no AI).
-function plan(info, { height = 'source', fps = 'source', model = 'fast' } = {}) {
+// What has to happen for a source → target change. Lower frame rates are a plain frame drop (no AI).
+// Resolution: with restore (the Upscaling preset) the AI always runs, even when the target is not larger than the
+// source: frames go to the AI at the target size (or half of it for the ×4-only "quality" model), come out ×2 larger
+// with the detail rebuilt and the compression noise gone, then are scaled back down to the target. Without restore,
+// a lower target is a plain downscale.
+function plan(info, { height = 'source', fps = 'source', model = 'fast', restore = false } = {}) {
   const v = info.video;
   const turned = Math.abs(v.rotation || 0) % 180 === 90;
   const srcH = turned ? v.width : v.height;
   const srcFps = v.baseFps || v.fps;
   const targetH = height === 'source' ? srcH : Number(height);
   const targetFps = fps === 'source' ? srcFps : Number(fps);
-  const upscale = targetH > srcH;
+  const bigger = targetH > srcH;
+  const upscale = bigger || restore;
   const ratio = targetFps / srcFps;
   const mult = ratio > 1.01 ? Math.ceil(ratio - 1e-6) : 1; // RIFE makes ×mult, ffmpeg then resamples to the exact target
-  const scale = !upscale ? 1 : model === 'quality' ? 4 : Math.min(4, Math.max(2, Math.ceil(targetH / srcH - 1e-6)));
-  return { srcH, srcFps, targetH, targetFps, upscale, scale, mult, model, ai: upscale || mult > 1 };
+  const scale = !upscale ? 1 : model === 'quality' ? 4 : bigger ? Math.min(4, Math.max(2, Math.ceil(targetH / srcH - 1e-6))) : 2;
+  // Height the frames are brought to before the AI (null = as they are): the AI then works at 2× the target.
+  const inH = upscale && !bigger ? Math.max(2, Math.round((targetH * 2) / scale / 2) * 2) : null;
+  const outH = upscale ? (inH || srcH) * scale : srcH;
+  return { srcH, srcFps, targetH, targetFps, upscale, scale, inH, outH, mult, model, ai: upscale || mult > 1 };
 }
 
 // Spawns a tracked process (cancel kills it). Rejects with its last error line, or CANCELLED.
@@ -181,7 +189,7 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
       ['in', 'up', 'mid'].forEach((d) => fresh(dir(d)));
       // -ss half a frame early keeps frame s and drops s-1 (accurate seek), without depending on float rounding.
       await run(job, FFMPEG, ['-v', 'error', ...(s ? ['-ss', ((s - 0.5) / p.srcFps).toFixed(6)] : []), '-i', input,
-        '-map', '0:v:0', '-frames:v', String(take), '-fps_mode', 'passthrough', path.join(dir('in'), '%08d.png')]);
+        '-map', '0:v:0', '-frames:v', String(take), '-fps_mode', 'passthrough', ...(p.inH ? ['-vf', `scale=-2:${p.inH}:flags=lanczos`] : []), path.join(dir('in'), '%08d.png')]);
       done('extract');
       let cur = dir('in');
       const count = frames(cur).length;
@@ -195,15 +203,14 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
       }
       if (p.mult > 1) {
         const keep = (last ? count : count - 1) * p.mult; // drop what belongs to the next chunk
-        const uhd = p.upscale ? p.srcH * p.scale >= 1440 : p.srcH >= 1440;
+        const uhd = p.outH >= 1440;
         await run(job, RIFE, ['-i', cur, '-o', dir('mid'), '-m', path.join(path.dirname(RIFE), 'rife-v4.6'), '-n', String(count * p.mult), ...(uhd ? ['-u'] : []), ...gpuArgs()]);
         frames(dir('mid')).slice(keep).forEach((f) => fs.rmSync(path.join(dir('mid'), f)));
         cur = dir('mid');
         done('interpolate');
       }
-      const outH = p.upscale ? p.srcH * p.scale : p.srcH;
       // Width to a multiple of 8 (854×480 → 1920×1080, not 1922): standard sizes, happier hardware encoders.
-      const vf = outH !== p.targetH && p.upscale ? ['-vf', `scale=-8:${p.targetH}:flags=lanczos`] : [];
+      const vf = p.outH !== p.targetH && p.upscale ? ['-vf', `scale=-8:${p.targetH}:flags=lanczos`] : [];
       const chunk = dir(`chunk${String(k).padStart(5, '0')}.mp4`);
       const encode = (enc) => run(job, FFMPEG, ['-v', 'error', '-framerate', String(outFps), '-i', path.join(cur, '%08d.png'), ...vf, ...enc, '-pix_fmt', 'yuv420p', chunk]);
       try { await encode(chunkEncoder(gpu)); } catch (e) {

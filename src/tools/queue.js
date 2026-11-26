@@ -11,9 +11,10 @@
 //   defaultTarget(item, last) -> 'mp3'                initial choice (last = the format picked most recently)
 //   allowSame                                         also offer the source's own format
 //   options: [{ id, label, type: 'select'|'toggle', choices: [[value, labelKey]], value }]   always visible
+//   shownOptions(items) -> Set of option ids          optional: only these options are shown (the others don't apply)
 //   advanced: [same shape]                            "Advanced" panel, collapsed by default (Pro settings)
 //   presets: [{ id: '@name', icon, kinds: ['video'] }] one-click bar; labels from i18n 'preset.<name>' / 'preset.<name>.sub'
-//   hints(item, probe) -> [{ text, tip, pro }]        small tags on a row (pro ones only show in Advanced mode)
+//   hints(item, probe, options) -> [{ text, tip, pro }]  small tags on a row (pro ones only show in Advanced mode)
 //   showGpu                                           GPU chip in the action bar
 //   run({ id, src, target, outDir, options }) -> Promise<outputPath>
 // })
@@ -89,6 +90,10 @@ function QueueTool(cfg) {
     q('.dest').title = outDir || t('common.outputTip');
     q('.dest-reset').hidden = !outDir || busy;
     q('.global').classList.toggle('on', busy);
+    if (cfg.shownOptions) {
+      const shown = cfg.shownOptions(list);
+      q('.opts').querySelectorAll('[data-opt]').forEach((el) => { (el.closest('.opt') || el).hidden = !shown.has(el.dataset.opt); });
+    }
     // A preset chip is "on" when every file it applies to uses it.
     root.querySelectorAll('.preset').forEach((b) => {
       const fits = list.filter((it) => it.targets.includes(b.dataset.preset));
