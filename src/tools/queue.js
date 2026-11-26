@@ -65,6 +65,8 @@ function QueueTool(cfg) {
       ? `<span class="badge ok">${I.check}${t('q.done')}</span><button class="icon reveal" type="button" title="${F.esc(t('common.reveal'))}">${I.folder}</button>`
       : `<span class="pct">${label}</span><span class="eta">${F.esc(detail)}</span>`;
     st.querySelector('.reveal')?.addEventListener('click', () => window.api.reveal(it.out));
+    it.el.draggable = state === 'done';
+    if (state === 'done') it.el.title = t('q.dragTip');
     it.el.querySelector('select').disabled = state === 'run';
     it.el.querySelector('.remove').disabled = state === 'run';
     if (state !== 'run' && state !== 'done') it.el.querySelector('.bar i').style.width = '0%';
@@ -98,6 +100,7 @@ function QueueTool(cfg) {
     root.querySelectorAll('.preset').forEach((b) => {
       const fits = list.filter((it) => it.targets.includes(b.dataset.preset));
       b.classList.toggle('on', fits.length > 0 && fits.every((it) => it.target === b.dataset.preset));
+      b.setAttribute('aria-pressed', String(b.classList.contains('on')));
       b.disabled = !fits.length || busy;
     });
   }
@@ -133,6 +136,8 @@ function QueueTool(cfg) {
       <button class="icon remove" type="button" title="${F.esc(t('q.remove'))}">${I.x}</button>
       <div class="bar"><i></i></div>`;
     it.el = el;
+    // Done rows drag the real file (OS drag from the main process) into Premiere Pro, Resolve, Explorer…
+    el.addEventListener('dragstart', (e) => { if (it.state !== 'done') return; e.preventDefault(); window.api.startDrag(it.out); });
     el.querySelector('select').onchange = (e) => {
       it.target = e.target.value;
       App.store.set(key('last'), it.target);
@@ -254,13 +259,14 @@ function QueueTool(cfg) {
       ? `<div class="adv-section">${I[o.icon] || ''}<b>${t(o.section)}</b><span>${t(o.sub)}</span>${o.status ? `<span class="chip ${o.status}"></span>` : ''}</div>`
       : o.type === 'select'
         ? `<label class="opt">${t(o.label)} <select data-opt="${o.id}">${o.choices.map(([v, k]) => `<option value="${v}"${v === opts[o.id] ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label>`
-        : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}">${I.check}${t(o.label)}</button>`)).join('');
+        : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}" aria-pressed="${opts[o.id] === '1'}">${I.check}${t(o.label)}</button>`)).join('');
     box.querySelectorAll('select[data-opt]').forEach((s) => s.onchange = () => { opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); items.forEach(tags); });
     box.querySelectorAll('button[data-opt]').forEach((b) => b.onclick = () => {
       const id = b.dataset.opt;
       opts[id] = opts[id] === '1' ? '0' : '1';
       App.store.set(key(id), opts[id]);
       b.classList.toggle('on', opts[id] === '1');
+      b.setAttribute('aria-pressed', String(opts[id] === '1'));
     });
   }
 
@@ -289,7 +295,7 @@ function QueueTool(cfg) {
           </button>`).join('')}</div>` : ''}
         ${cfg.options ? '<div class="opts"></div>' : ''}
         ${cfg.advanced ? `<div class="adv-panel"><div class="adv-head">${I.sliders}<b>${t(cfg.advancedTitle || 'adv.title')}</b>${cfg.showGpu ? '<span class="adv-gpu chip"></span>' : ''}</div><div class="adv-grid"></div></div>` : ''}
-        <div class="list" aria-live="polite"></div>
+        <div class="list"></div>
       </div>
       <footer class="actionbar">
         <div class="dest-wrap">
@@ -339,10 +345,17 @@ function QueueTool(cfg) {
     onKey(e) {
       if (e.ctrlKey && e.key.toLowerCase() === 'o') { e.preventDefault(); pick(); }
       else if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); if (!q('.go').disabled && !busy) runAll(); }
-      else if (e.key === 'Escape') cancel();
+      else if (e.key === 'Escape' && !e.target.closest?.('select')) cancel();
     },
   });
-  return { addFiles, runAll, cancel };
+  // Personal presets (Converter): read and replace the Advanced settings.
+  const advancedValues = () => Object.fromEntries([...advancedIds].map((id) => [id, opts[id]]));
+  function setAdvanced(values) {
+    for (const o of cfg.advanced || []) if (o.id) { opts[o.id] = values[o.id] ?? o.value; App.store.set(key(o.id), opts[o.id]); }
+    renderOptions(q('.adv-grid'), cfg.advanced);
+    items.forEach(tags);
+  }
+  return { addFiles, runAll, cancel, advancedValues, setAdvanced };
 }
 
 window.Tools = {}; // tools expose their actions here for tools/snap.js screenshots

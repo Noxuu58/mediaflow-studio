@@ -33,8 +33,8 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 | | Tool | What it does |
 | :-- | :-- | :-- |
-| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control. |
-| ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. |
+| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control — and **My presets** saves those settings under a name, to reuse or share as a JSON file. |
+| ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. Download **only a part** (say 1:05 → 1:42) or a **whole playlist** in one click. |
 | ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
 | 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
 | 🪄 | **AI Enhance** | Two modes, 100% local on your graphics card: **Upscaling** with Real-ESRGAN (videos 720p → 4K — even at the same size it rebuilds detail and removes compression blocks — and **photos and images ×2 / ×3 / ×4** in PNG, JPG or WebP, transparency kept) and **Interpolation** with RIFE (smooth motion up to 240 fps — 60, 120, 180 or 240). Lower targets are a classic downscale / frame drop. |
@@ -59,24 +59,27 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 <div align="center">
 <img src="docs/screenshots/advanced.png" alt="Advanced mode — ProRes, DNxHR, bit depth, frame rate, audio tracks, GPU" width="90%">
-<br><sub><b>Advanced mode</b> — one click away, never in the way: codecs, bit depth, frame rate, audio tracks, GPU.</sub>
+<br><sub><b>Advanced mode</b> — one click away, never in the way: codecs, bit depth, frame rate, audio tracks, GPU. Save them as <b>your own presets</b> and share them as JSON.</sub>
 </div>
 
 <br>
 
 | | Also |
 | :-- | :-- |
-| ⚙️ | **Settings** (<kbd>Ctrl</kbd> + <kbd>,</kbd>) — language, sounds, the graphics card for AI, the video encoder (NVENC / Quick Sync / AMF / CPU), your Vulkan version, keep the PC awake during long jobs |
+| 🖱️ | **Drag a finished file** from its row straight into Premiere Pro, DaVinci Resolve or any folder |
+| ⚙️ | **Settings** (<kbd>Ctrl</kbd> + <kbd>,</kbd>) — language, sounds, the graphics card for AI, the video encoder (NVENC / Quick Sync / AMF / CPU), your Vulkan version, keep the PC awake during long jobs, open the logs |
+| 💬 | Errors in plain words — disk full, file open in another app, private or age-restricted video, no connection… — and a log file (**Settings → Open logs**) with the details when you need help |
 | 🧯 | Closing the window while a job runs asks first — no export lost by accident |
-| 🩺 | Clear messages when a graphics card can't run the AI — with a link to the right driver |
+| 🩺 | Clear messages when a graphics card can't run the AI — with a link to the right driver. AI Enhance checks the free disk space before it starts |
+| ♿ | Readable and accessible — high-contrast text (WCAG AA), full keyboard use, screen-reader labels, a layout that adapts to small windows |
 | 🌍 | 9 languages — English, Français, Español, Deutsch, Português, Italiano, 简体中文, 日本語, 한국어 (switch in Settings) |
 | 🔔 | Windows notifications + taskbar progress |
 | 🔊 | Soft UI sounds (mute them in Settings) |
-| 🛡️ | Never overwrites a file — `name (1).mp4` |
+| 🛡️ | Never overwrites a file — `name (1).mp4`, even with several jobs started at once. Downloads are named after the title **and** the video id |
 | 📁 | Output folder per tool, remembered |
 
 <div align="center">
-<img src="docs/screenshots/settings.png" alt="Settings — 9 languages, sounds, graphics card, video encoder, Vulkan, keep awake" width="70%">
+<img src="docs/screenshots/settings.png" alt="Settings — 9 languages, sounds, graphics card, video encoder, Vulkan, keep awake, logs" width="70%">
 <br><sub><b>Settings</b> — 9 languages, each listed under its own name.</sub>
 </div>
 
@@ -109,7 +112,7 @@ Sites change often: if a link stops working, click **Update** at the bottom of t
 | :-- | :-- |
 | <kbd>Ctrl</kbd> + <kbd>O</kbd> | Add files |
 | <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Start (convert · extract · export · download) |
-| <kbd>Esc</kbd> | Cancel |
+| <kbd>Esc</kbd> | Cancel (closes an open list first, never cancels by accident) |
 | <kbd>Ctrl</kbd> + <kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd> + <kbd>V</kbd> | Paste a link (Downloader) |
 | <kbd>Space</kbd> | Play / pause (Trimmer) |
@@ -164,12 +167,15 @@ Full guide: **[RELEASING.md](RELEASING.md)**.
 src/
   main.js           Electron main process
   convert.js        FFmpeg engine — convert, trim, extract, preview strip
-  download.js       yt-dlp engine (uses Electron's built-in Node for YouTube)
+  download.js       yt-dlp engine — parts of videos, playlists (uses Electron's built-in Node for YouTube)
+  errors.js         raw FFmpeg / yt-dlp errors → short codes the window explains in your language
+  log.js            main.log (uncaught errors, failed jobs with the tool's output)
+  presets.js        personal presets: JSON import / export, every value checked
   i18n.js           translation engine (picks the language, fills {placeholders}, plurals)
   locales/          one file per language: en · fr · es · de · pt · it · zh · ja · ko
   sfx.js            UI sounds, synthesized (no audio files)
   app.js            sidebar, navigation, drag & drop, shared helpers
-  settings.js       Settings panel (language, sounds, graphics card, encoder, Vulkan, keep awake)
+  settings.js       Settings panel (language, sounds, graphics card, encoder, Vulkan, keep awake, logs)
   ai.js             AI engine — Real-ESRGAN + RIFE (ncnn / Vulkan), GPU detection
   styles.css        the whole design system
   tools/

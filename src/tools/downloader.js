@@ -6,9 +6,11 @@
   const LOSSLESS = ['wav', 'flac'];
   const BITRATES = ['320', '256', '192', '128'];
   const RES_LABEL = { 2160: '4K', 1440: '2K', 1080: 'Full HD', 720: 'HD' };
+  const PLAYLIST_HEIGHTS = [2160, 1440, 1080, 720, 480, 360]; // each video gets the closest it has, never more
 
   const items = new Map();
-  let root, info = null, outDir = App.store.get('dlDir'), nextId = 0, analyzing = 0;
+  let root, info = null, outDir = App.store.get('dlDir'), nextId = 0, analyzing = 0, section = false;
+  let line = Promise.resolve(); // playlist videos download one after another
   let mode = App.store.get('dlMode') || 'video';
   const fmt = { video: App.store.get('dlVideoFmt') || 'mp4', audio: App.store.get('dlAudioFmt') || 'mp3' };
   const q = (s) => root.querySelector(s);
@@ -53,36 +55,49 @@
       q('#dl-retry-an').onclick = () => analyze(q('#url').value);
       return;
     }
+    const pl = info.playlist;
     box.innerHTML = `
       <div class="dl-thumb">${info.thumbnail ? `<img src="${F.esc(info.thumbnail)}" alt="">` : I.video}
         ${info.duration ? `<span class="dur">${F.clock(info.duration)}</span>` : ''}</div>
       <div class="dl-info">
-        <span class="dl-site">${F.esc(info.site)}${info.uploader ? ` · ${F.esc(info.uploader)}` : ''}</span>
+        <span class="dl-site">${F.esc(info.site)}${info.uploader ? ` · ${F.esc(info.uploader)}` : ''}${pl ? ` · ${F.esc(t('dl.playlist', { n: info.entries.length }))}` : ''}</span>
         <span class="dl-title" title="${F.esc(info.title)}">${F.esc(info.title)}</span>
         <div class="dl-opts">
-          <div class="seg" role="tablist">
+          <div class="seg" role="group" aria-label="${F.esc(t('dl.mode'))}">
             <button type="button" data-mode="video" ${info.hasVideo ? '' : 'disabled'}>${I.video}${t('dl.video')}</button>
             <button type="button" data-mode="audio">${I.audio}${t('dl.audio')}</button>
           </div>
           <div class="pills"></div>
           <select id="dl-quality" aria-label="${F.esc(t('dl.quality'))}"></select>
-          <button id="dl-go" class="primary" type="button">${I.download}${t('dl.download')}</button>
+          ${pl ? '' : `<button type="button" class="pill toggle dl-part${section ? ' on' : ''}" aria-pressed="${section}" title="${F.esc(t('dl.sectionTip'))}">${I.scissors}${t('dl.section')}</button>`}
+          <button id="dl-go" class="primary" type="button">${I.download}${pl ? t('dl.downloadAll', { n: info.entries.length }) : t('dl.download')}</button>
         </div>
+        ${pl ? '' : `<div class="dl-range"${section ? '' : ' hidden'}>
+          <label>${t('dl.from')} <input id="dl-from" class="tcode" type="text" inputmode="decimal" spellcheck="false" value="0:00.00"></label>
+          <label>${t('dl.to')} <input id="dl-to" class="tcode" type="text" inputmode="decimal" spellcheck="false" value="${F.tc(info.duration || 0)}"></label>
+        </div>`}
       </div>`;
+    box.querySelector('.dl-part')?.addEventListener('click', (e) => {
+      section = !section;
+      e.currentTarget.classList.toggle('on', section);
+      e.currentTarget.setAttribute('aria-pressed', String(section));
+      q('.dl-range').hidden = !section;
+      if (section) q('#dl-from').focus();
+    });
     box.querySelectorAll('.seg button').forEach((b) => b.onclick = () => { mode = b.dataset.mode; App.store.set('dlMode', mode); renderOptions(); });
     q('#dl-go').onclick = start;
     renderOptions();
   }
 
   function renderOptions() {
-    root.querySelectorAll('.dl-preview .seg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
+    root.querySelectorAll('.dl-preview .seg button').forEach((b) => { b.classList.toggle('on', b.dataset.mode === mode); b.setAttribute('aria-pressed', String(b.dataset.mode === mode)); });
     const list = mode === 'video' ? VIDEO : AUDIO;
-    q('.pills').innerHTML = list.map((f) => `<button type="button" class="pill ${mode}${f === fmt[mode] ? ' on' : ''}" data-fmt="${f}">${f}</button>`).join('');
+    q('.pills').innerHTML = list.map((f) => `<button type="button" class="pill ${mode}${f === fmt[mode] ? ' on' : ''}" data-fmt="${f}" aria-pressed="${f === fmt[mode]}">${f}</button>`).join('');
     q('.pills').querySelectorAll('.pill').forEach((b) => b.onclick = () => {
       fmt[mode] = b.dataset.fmt; App.store.set(mode === 'video' ? 'dlVideoFmt' : 'dlAudioFmt', fmt[mode]); renderOptions();
     });
     const sel = q('#dl-quality');
-    const opts = mode === 'video' ? info.heights.filter((h) => h >= 144) : BITRATES;
+    const opts = mode === 'video' ? (info.playlist ? PLAYLIST_HEIGHTS : info.heights.filter((h) => h >= 144)) : BITRATES;
     const saved = App.store.get(`dlQ-${mode}`);
     sel.innerHTML = `<option value="best">${t('dl.best')}</option>` + opts.map((o) =>
       `<option value="${o}">${mode === 'video' ? `${o}p${RES_LABEL[o] ? ` · ${RES_LABEL[o]}` : ''}` : `${o} kb/s`}</option>`).join('');
@@ -104,6 +119,8 @@
         : `<span class="pct">${pct}</span><span class="eta">${F.esc(detail)}</span>`;
     st.querySelector('.reveal')?.addEventListener('click', () => window.api.reveal(it.out));
     st.querySelector('.retry')?.addEventListener('click', () => run(it));
+    it.el.draggable = state === 'done';
+    if (state === 'done') it.el.title = t('q.dragTip');
     it.el.querySelector('.act').title = t(state === 'run' ? 'common.cancel' : 'dl.removeTip');
     if (state !== 'run' && state !== 'done') it.el.querySelector('.bar i').style.width = '0%';
     refresh();
@@ -114,7 +131,7 @@
     it.el.title = '';
     setState(it, 'run', '0 %', t('dl.connecting'));
     try {
-      it.out = await window.api.dl.start({ id: it.id, url: it.url, fmt: it.fmt, quality: it.quality, outDir: outDir || await window.api.downloadsDir() });
+      it.out = await window.api.dl.start({ id: it.id, url: it.url, fmt: it.fmt, quality: it.quality, section: it.section, outDir: outDir || await window.api.downloadsDir() });
       it.el.querySelector('.bar i').style.width = '100%';
       setState(it, 'done');
       it.el.querySelector('.spec').textContent = `→ ${F.base(it.out)}`;
@@ -132,29 +149,54 @@
     }
   }
 
-  function start() {
-    if (!info) return;
-    const it = { id: `dl${nextId++}`, url: info.url, title: info.title, fmt: fmt[mode], quality: q('#dl-quality').value, mode };
-    it.spec = [info.site, qualityLabel(mode, it.quality), info.duration && F.clock(info.duration)].filter(Boolean).join(' · ');
+  // The part of the video to download ({ start, end } in seconds), null for all of it, false when the times are wrong.
+  function readSection() {
+    if (!section || info.playlist) return null;
+    const start = F.parseTc(q('#dl-from').value), end = F.parseTc(q('#dl-to').value);
+    const max = info.duration || Infinity;
+    return start != null && end != null && end > start && start < max ? { start, end: Math.min(end, max) } : false;
+  }
+
+  function addRow(v, extra, atEnd = false) {
+    const it = { id: `dl${nextId++}`, url: v.url, title: v.title, fmt: fmt[mode], quality: q('#dl-quality').value, mode, ...extra };
+    const dur = it.section ? it.section.end - it.section.start : v.duration;
+    it.spec = [info.site, qualityLabel(mode, it.quality), it.section && `${F.tc(it.section.start)} → ${F.tc(it.section.end)}`, dur && F.clock(dur)].filter(Boolean).join(' · ');
     const el = document.createElement('div');
     el.innerHTML = `
-      <div class="thumb ${mode}">${info.thumbnail ? `<img src="${F.esc(info.thumbnail)}" alt="">` : I[mode]}</div>
+      <div class="thumb ${mode}">${v.thumbnail ? `<img src="${F.esc(v.thumbnail)}" alt="">` : I[mode]}</div>
       <div class="meta"><div class="name">${F.esc(it.title)}</div><div class="spec"></div></div>
       <div class="route"><span class="fmt ${mode}">${it.fmt}</span></div>
       <div class="state"></div>
       <button class="icon act" type="button">${I.x}</button>
       <div class="bar"><i></i></div>`;
     it.el = el;
+    el.addEventListener('dragstart', (e) => { if (it.state !== 'done') return; e.preventDefault(); window.api.startDrag(it.out); });
     el.querySelector('.act').onclick = () => {
       if (it.state === 'run') return window.api.dl.cancel(it.id);
       el.classList.add('leaving'); items.delete(it.id);
       setTimeout(() => { el.remove(); refresh(); }, 280);
     };
-    q('.list').prepend(el);
+    q('.list')[atEnd ? 'append' : 'prepend'](el); // newest single download on top, a playlist in its order
     items.set(it.id, it);
-    run(it);
+    return it;
+  }
+
+  function start() {
+    if (!info) return;
+    if (info.playlist) {
+      for (const v of info.entries) {
+        const it = addRow(v, {}, true);
+        it.el.querySelector('.spec').textContent = it.spec;
+        setState(it, 'queued', t('q.queued'));
+        line = line.then(() => (items.has(it.id) && it.state === 'queued' ? run(it) : null));
+      }
+    } else {
+      const part = readSection();
+      if (part === false) return App.toast(t('dl.sectionBad'), true);
+      run(addRow(info, { section: part || undefined }));
+    }
     // Clear the composer so the next link can be pasted right away.
-    q('#url').value = ''; info = null; q('.dl-preview').hidden = true; refresh();
+    q('#url').value = ''; info = null; section = false; q('.dl-preview').hidden = true; refresh();
   }
 
   window.api.dl.onProgress(({ id, stage, p, speed, eta }) => {
@@ -219,7 +261,7 @@
           <div class="q-title">${t('dl.list')} <span class="q-count"></span></div>
           <button id="dl-clean" class="ghost sm" type="button">${t('q.cleanDone')}</button>
         </div>
-        <div class="list" aria-live="polite"></div>
+        <div class="list"></div>
       </div>
       <footer class="actionbar">
         <div class="dest-wrap">
@@ -253,7 +295,7 @@
     id: 'download', label: t('dl.label'), icon: I.download, title: t('dl.label'), subtitle: t('dl.subtitle'),
     mount,
     onDropText: analyze,
-    isBusy: () => [...items.values()].some((it) => it.state === 'run'),
+    isBusy: () => [...items.values()].some((it) => it.state === 'run' || it.state === 'queued'),
     onKey(e) {
       if (e.ctrlKey && e.key.toLowerCase() === 'v' && document.activeElement?.id !== 'url') {
         e.preventDefault(); window.api.clipboard().then(analyze);

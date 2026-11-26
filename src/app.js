@@ -54,6 +54,15 @@ const App = (() => {
     speed: (b) => (b >= 1e6 ? `${num(b / 1e6, 1)} ${t('unit.mb')}/s` : `${Math.round(b / 1e3)} ${t('unit.kb')}/s`),
     clock: (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`; },
     secs: (s) => (s < 60 ? `${num(s, 1)} s` : fmt.clock(s)),
+    // 75.25 ↔ "1:15.25" (also accepts "0:01:15", "75.5", "75,5"). parseTc returns null for anything else.
+    tc: (s) => {
+      const cs = Math.round(s * 100), h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, sec = ((cs % 6000) / 100).toFixed(2).padStart(5, '0');
+      return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+    },
+    parseTc: (str) => {
+      const parts = String(str).trim().replace(',', '.').split(':').map(Number);
+      return String(str).trim() && parts.length <= 3 && parts.every((n) => Number.isFinite(n) && n >= 0) ? parts.reduce((a, n) => a * 60 + n, 0) : null;
+    },
     num,
   };
 
@@ -76,7 +85,10 @@ const App = (() => {
     if (tool === active) return;
     active = tool;
     store.set('tool', tool.id);
-    document.querySelectorAll('#nav .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.id === tool.id));
+    document.querySelectorAll('#nav .nav-item').forEach((b) => {
+      b.classList.toggle('active', b.dataset.id === tool.id);
+      if (b.dataset.id === tool.id) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
     moveGlider();
     $('#title').textContent = tool.title;
     $('#subtitle').textContent = tool.subtitle;
@@ -96,7 +108,7 @@ const App = (() => {
     el.textContent = msg;
     el.className = `toast show${err ? ' err' : ''}`;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 3400);
+    toastTimer = setTimeout(() => el.classList.remove('show'), err ? 8000 : 3400); // errors stay long enough to be read
   }
   const notify = (title, body) => { if (!document.hasFocus()) new Notification(title, { body, silent: true }); };
 
@@ -186,8 +198,9 @@ const App = (() => {
       b.onclick = () => show(x.id);
       $('#nav').append(b);
     }
-    document.body.classList.toggle('collapsed', store.get('collapsed') === '1');
-    $('#collapse').onclick = () => store.set('collapsed', document.body.classList.toggle('collapsed') ? '1' : '0');
+    const collapse = (on) => { document.body.classList.toggle('collapsed', on); $('#collapse').setAttribute('aria-pressed', String(on)); store.set('collapsed', on ? '1' : '0'); };
+    collapse(store.get('collapsed') === '1');
+    $('#collapse').onclick = () => collapse(!document.body.classList.contains('collapsed'));
     setMuted(muted);
     window.api.update.onStatus(onUpdate);
     $('#updates').onclick = () => checkUpdates(true);

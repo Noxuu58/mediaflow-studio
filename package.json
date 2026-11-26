@@ -1,6 +1,6 @@
 {
   "name": "mediaflow-studio",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "MediaFlow Studio — a polished media toolkit for video editors: convert, download, trim and extract audio.",
   "main": "src/main.js",
   "scripts": {
@@ -26,6 +26,19 @@
   "productName": "MediaFlow Studio",
   "build": {
     "appId": "com.noxuu58.mediaflowstudio",
+    "electronLanguages": [
+      "en-US",
+      "fr",
+      "es",
+      "es-419",
+      "de",
+      "pt-BR",
+      "pt-PT",
+      "it",
+      "zh-CN",
+      "ja",
+      "ko"
+    ],
     "files": [
       "src/**",
       "build/icon.png",

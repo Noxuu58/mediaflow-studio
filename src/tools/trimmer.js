@@ -10,15 +10,7 @@
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
   const frame = () => 1 / (info?.video?.fps || 30);
 
-  // 75.25 ↔ "1:15.25" (also accepts "0:01:15", "75.5", "75,5")
-  function tc(s) {
-    const cs = Math.round(s * 100), h = Math.floor(cs / 360000), m = Math.floor(cs / 6000) % 60, sec = ((cs % 6000) / 100).toFixed(2).padStart(5, '0');
-    return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
-  }
-  function parse(str) {
-    const parts = String(str).trim().replace(',', '.').split(':').map(Number);
-    return parts.length <= 3 && parts.every((n) => Number.isFinite(n) && n >= 0) ? parts.reduce((a, n) => a * 60 + n, 0) : null;
-  }
+  const { tc, parseTc: parse } = F; // 75.25 ↔ "1:15.25" (App.fmt)
 
   // ---- loading -------------------------------------------------------------------------------------
   async function open(paths) {
@@ -102,7 +94,7 @@
     q('.dest-reset').hidden = !outDir || busy;
     q('.last').hidden = !last || busy;
     q('.seg').hidden = file?.kind === 'audio'; // audio is always cut losslessly
-    root.querySelectorAll('.seg button').forEach((b) => b.classList.toggle('on', (b.dataset.mode === 'precise') === precise));
+    root.querySelectorAll('.seg button').forEach((b) => { const on = (b.dataset.mode === 'precise') === precise; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   }
 
   // Timeline: drag the in/out handles, or click/drag anywhere else to scrub.
@@ -251,7 +243,7 @@
       const k = e.key.toLowerCase();
       if (e.ctrlKey && k === 'o') { e.preventDefault(); pick(); }
       else if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); exportClip(); }
-      else if (e.key === 'Escape' && busy) window.api.cancel(JOB);
+      else if (e.key === 'Escape' && busy && !e.target.closest?.('select')) window.api.cancel(JOB);
       else if (!file || e.ctrlKey || e.altKey) return;
       else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
       else if (k === 'i') setIn(pos);

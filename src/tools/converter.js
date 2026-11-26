@@ -1,9 +1,70 @@
 // Converter: one-click presets (Simple mode) or any format, with Pro settings in the Advanced panel.
 // Presets and their technical settings live in src/convert.js (PRESETS); see queue.js for the config shape.
 (() => {
-  const I = App.icons, { t } = I18n;
+  const I = App.icons, { t } = I18n, F = App.fmt;
   const PRESETS = ['@tiktok', '@youtube', '@proxy', '@audio'];
   const sel = (id, label, choices) => ({ id, label, type: 'select', value: 'auto', choices: [['auto', 'adv.auto'], ...choices] });
+
+  // ---- Personal presets: the Advanced settings under a name, kept in this window and shared as .json files
+  // (checked by the main process, src/presets.js).
+  const MINE = 'convert.mine';
+  const mine = () => { try { const v = JSON.parse(App.store.get(MINE)); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const keep = (list) => App.store.set(MINE, JSON.stringify(list));
+  const merge = (list, add) => [...list.filter((p) => !add.some((a) => a.name === p.name)), ...add];
+
+  function presetBar(root) {
+    const bar = Object.assign(document.createElement('div'), { className: 'mine', title: t('pre.tip') });
+    root.querySelector('.adv-head').append(bar);
+    const draw = (picked = '') => {
+      const list = mine();
+      bar.innerHTML = `
+        <select class="mine-pick" aria-label="${F.esc(t('pre.mine'))}"><option value="">${F.esc(t('pre.pick'))}</option>
+          ${list.map((p, i) => `<option value="${i}"${p.name === picked ? ' selected' : ''}>${F.esc(p.name)}</option>`).join('')}</select>
+        <input class="mine-name tcode" type="text" maxlength="60" spellcheck="false" placeholder="${F.esc(t('pre.name'))}" aria-label="${F.esc(t('pre.name'))}" hidden>
+        <button class="ghost sm mine-save" type="button">${I.plus}${t('pre.save')}</button>
+        <button class="icon mine-del" type="button" title="${F.esc(t('pre.delete'))}" aria-label="${F.esc(t('pre.delete'))}"${picked ? '' : ' disabled'}>${I.x}</button>
+        <button class="ghost sm mine-import" type="button">${t('pre.import')}</button>
+        <button class="ghost sm mine-export" type="button"${list.length ? '' : ' disabled'}>${t('pre.export')}</button>`;
+      const pick = bar.querySelector('.mine-pick'), name = bar.querySelector('.mine-name');
+      pick.onchange = () => {
+        const p = list[pick.value];
+        bar.querySelector('.mine-del').disabled = !p;
+        if (!p) return;
+        Tools.convert.setAdvanced(p.options);
+        App.toast(t('pre.applied', { name: p.name }));
+      };
+      const commit = () => {
+        const n = name.value.trim();
+        name.hidden = true;
+        if (!n) return;
+        const options = Object.fromEntries(Object.entries(Tools.convert.advancedValues()).filter(([, v]) => v && v !== 'auto'));
+        keep(merge(mine(), [{ name: n, options }]));
+        draw(n);
+        App.toast(t('pre.saved', { name: n }));
+      };
+      bar.querySelector('.mine-save').onclick = () => {
+        if (name.hidden) { name.hidden = false; name.value = list[pick.value]?.name || ''; name.focus(); } else commit();
+      };
+      name.onkeydown = (e) => {
+        if (e.key === 'Enter') commit();
+        else if (e.key === 'Escape') { e.stopPropagation(); name.hidden = true; }
+      };
+      bar.querySelector('.mine-del').onclick = () => { keep(list.filter((_, i) => String(i) !== pick.value)); draw(); };
+      bar.querySelector('.mine-import').onclick = async () => {
+        try {
+          const add = await window.api.presets.import();
+          if (!add) return;
+          keep(merge(mine(), add));
+          draw(add.length === 1 ? add[0].name : '');
+          App.toast(t('pre.imported', { n: add.length }));
+        } catch (e) { App.toast(I18n.error(e), true); }
+      };
+      bar.querySelector('.mine-export').onclick = async () => {
+        try { if (await window.api.presets.export(mine())) App.toast(t('pre.exported')); } catch (e) { App.toast(I18n.error(e), true); }
+      };
+    };
+    draw();
+  }
 
   Tools.convert = QueueTool({
     id: 'convert', icon: I.convert,
@@ -50,6 +111,7 @@
       sel('tracks', 'adv.tracks', [['first', 'adv.tracks.first'], ['all', 'adv.tracks.all'], ['mix', 'adv.tracks.mix']]),
       sel('gpu', 'adv.gpu', [['on', 'adv.on'], ['off', 'adv.gpu.off']]),
     ], // AI upscaling / interpolation has its own tool: tools/enhancer.js
+    onMount: presetBar,
     run: ({ id, src, target, outDir, options }) => window.api.convert({ id, src, target, outDir, advanced: options }),
   });
 })();

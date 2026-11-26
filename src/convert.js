@@ -46,11 +46,16 @@ function encodeArgs(src, target) {
 const copyArgs = (target) => ['-map', '0:v:0', '-map', '0:a?', '-c', 'copy',
   ...(target === 'mkv' ? [] : ['-movflags', '+faststart'])];
 
+// Picks a free name and reserves it at once (exclusive create): two jobs started together never pick the same file.
+// FFmpeg then overwrites the empty placeholder (-y); a failed job deletes it.
 function uniquePath(dir, name, target) {
-  let out = path.join(dir, `${name}.${target}`);
-  for (let i = 1; fs.existsSync(out); i++) out = path.join(dir, `${name} (${i}).${target}`);
-  return out;
+  for (let i = 0; ; i++) {
+    const out = path.join(dir, i ? `${name} (${i}).${target}` : `${name}.${target}`);
+    try { fs.closeSync(fs.openSync(out, 'wx')); return out; } catch (e) { if (e.code !== 'EEXIST') throw e; }
+  }
 }
+// Never blocks the window; a file still held by a just-killed process is retried (EBUSY / EPERM).
+const remove = (p) => fs.promises.rm(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
 
 // Running jobs by id, so cancelling a clip in one tool never stops another tool's queue.
 const jobs = new Map(); // id -> { aborted, procs: Set<ChildProcess> }
@@ -58,6 +63,15 @@ function cancel(id) {
   for (const [k, job] of jobs) if (id == null || k === id) { job.aborted = true; job.procs.forEach((p) => p.kill()); }
 }
 const killAll = () => cancel();
+// A job is registered from its first line (probe, GPU test, AI) to its last, so cancel(id) works at any moment.
+// Nested calls with the same id (extract's L / R files, the encode after the AI) share the job.
+async function withJob(id = Symbol('job'), fn) {
+  if (jobs.has(id)) return fn(jobs.get(id));
+  const job = { aborted: false, procs: new Set() };
+  jobs.set(id, job);
+  try { return await fn(job); } finally { if (jobs.get(id) === job) jobs.delete(id); }
+}
+const alive = (job) => { if (job.aborted) throw new Error('CANCELLED'); };
 
 // ffprobe ships next to the app (resources/bin) or in vendor/ during development (scripts/fetch-ffprobe.js).
 const FFPROBE = [process.resourcesPath && path.join(process.resourcesPath, 'bin', 'ffprobe.exe'),
@@ -179,7 +193,9 @@ function strip(src, duration) {
 
 function run(args, onProgress, total, job) {
   return new Promise((resolve, reject) => {
-    const p = spawn(FFMPEG, ['-hide_banner', '-nostdin', '-n', '-progress', 'pipe:1', '-nostats', ...args],
+    if (job.aborted) return reject(new Error('CANCELLED'));
+    // -y: the output name was reserved by uniquePath (an empty placeholder), never someone else's file.
+    const p = spawn(FFMPEG, ['-hide_banner', '-nostdin', '-y', '-progress', 'pipe:1', '-nostats', ...args],
       { windowsHide: true });
     job.procs.add(p);
     let duration = total, err = '';
@@ -205,20 +221,18 @@ function run(args, onProgress, total, job) {
 
 // Errors the UI translates are thrown as codes: CANCELLED, UNSUPPORTED, BAD_RANGE, NO_AUDIO.
 // Runs FFmpeg into `out`, trying each argument list in turn (e.g. lossless remux first, then re-encode).
-async function produce(id = Symbol('job'), out, tries, onProgress, total = 0) {
-  const job = { aborted: false, procs: new Set() };
-  jobs.set(id, job);
-  try {
+function produce(id, out, tries, onProgress, total = 0) {
+  return withJob(id, async (job) => {
     let last;
     for (const args of tries) {
       try { await run([...args, out], onProgress, total, job); onProgress(1); return out; } catch (e) {
-        fs.rmSync(out, { force: true }); // never leave a half-written file behind
         last = job.aborted ? new Error('CANCELLED') : e;
         if (job.aborted) break;
       }
     }
+    await remove(out); // never leave a half-written file (or the empty placeholder) behind
     throw last;
-  } finally { jobs.delete(id); }
+  });
 }
 
 const outPath = (src, outDir, name, ext2) => uniquePath(outDir || path.dirname(src), name, ext2);
@@ -334,12 +348,13 @@ function buildArgs(src, info, s, gpu) {
   const audios = info.audios || [];
   const af = s.loudness ? [`loudnorm=I=${s.loudness}:TP=-1.5:LRA=11`] : [];
   let audio = s.audio;
-  if (af.length && audio === 'copy') audio = 'aac320'; // filters need a re-encode
+  const mix = s.tracks === 'mix' && audios.length > 1;
+  if ((af.length || mix) && audio === 'copy') audio = 'aac320'; // filters (loudness, mix) need a re-encode
   const acodec = { aac192: ['-c:a', 'aac', '-b:a', '192k'], aac320: ['-c:a', 'aac', '-b:a', '320k'], pcm16: ['-c:a', 'pcm_s16le'], pcm24: ['-c:a', 'pcm_s24le'], copy: ['-c:a', 'copy'] }[audio];
   const rate = audio === 'copy' ? [] : ['-ar', '48000'];
   let amap = [], fc = [];
   if (audios.length) {
-    if (s.tracks === 'mix' && audios.length > 1) {
+    if (mix) {
       fc.push(`${audios.map((_, i) => `[0:a:${i}]`).join('')}amix=inputs=${audios.length}:normalize=0${af.length ? `,${af.join(',')}` : ''}[aout]`);
       amap = ['-map', '[aout]'];
     } else amap = ['-map', s.tracks === 'all' ? '0:a' : '0:a:0'];
@@ -382,60 +397,55 @@ function buildArgs(src, info, s, gpu) {
 // Preset job: probe → settings → FFmpeg (GPU first when available, CPU fallback).
 // With AI targets (aiHeight / aiFps), the AI stage (src/ai.js) runs first and the preset encode takes its
 // output: progress 0-90 % is the AI work (onProgress gets a stage label), 90-100 % the final encode.
-async function encode(src, preset, adv, outDir, onProgress = () => {}, id) {
+async function encode(src, preset, adv, outDir, onProgress = () => {}, id = Symbol('job')) {
   const kind = kindOf(src);
   if (kind === 'image' && preset === 'upscale') return upscaleImage(src, settingsFor(preset, adv), outDir, onProgress, id);
   if (kind !== 'video' && !(kind === 'audio' && preset === 'audio')) throw new Error('UNSUPPORTED');
   const s = settingsFor(preset, adv);
-  let info = await probe(src, { thumb: false });
-  const gpu = s.gpu === 'off' ? null : await detectGpu();
-  let input = src, tmp = null, report = (x) => onProgress(x);
-  try {
-    if (preset !== 'audio' && info.video && (s.aiHeight || s.aiFps)) {
-      const ai = require('./ai');
-      const p = ai.plan(info, { height: s.aiHeight || 'source', fps: s.aiFps || 'source', model: s.aiModel || 'fast', restore: preset === 'upscale' });
-      s.height = p.targetH; // exact target: AI already reached it when upscaling, plain downscale otherwise
-      if (Math.abs(p.targetFps - p.srcFps) > 0.01) s.fps = p.targetFps; // drop frames, or resample RIFE's ×N to the target
-      if (p.ai) {
-        const check = await ai.detect(FFMPEG); // clear message now, not after minutes of frame extraction
-        if (!check.available) throw new Error(check.reason === 'ENGINES' ? 'AI_MISSING' : `AI_${check.reason}`);
-        const job = { aborted: false, procs: new Set() };
-        const key = id ?? Symbol('job');
-        jobs.set(key, job); // cancel(id) reaches the AI processes too
-        try {
+  return withJob(id, async (job) => {
+    let info = await probe(src, { thumb: false });
+    alive(job);
+    const gpu = s.gpu === 'off' ? null : await detectGpu();
+    let input = src, tmp = null, report = (x) => onProgress(x);
+    try {
+      if (preset !== 'audio' && info.video && (s.aiHeight || s.aiFps)) {
+        const ai = require('./ai');
+        const p = ai.plan(info, { height: s.aiHeight || 'source', fps: s.aiFps || 'source', model: s.aiModel || 'fast', restore: preset === 'upscale' });
+        s.height = p.targetH; // exact target: AI already reached it when upscaling, plain downscale otherwise
+        if (Math.abs(p.targetFps - p.srcFps) > 0.01) s.fps = p.targetFps; // drop frames, or resample RIFE's ×N to the target
+        if (p.ai) {
+          const check = await ai.detect(FFMPEG); // clear message now, not after minutes of frame extraction
+          if (!check.available) throw new Error(check.reason === 'ENGINES' ? 'AI_MISSING' : `AI_${check.reason}`);
+          alive(job);
           ({ file: input, tmp } = await ai.enhance(src, info, p, { FFMPEG, job, gpu, tonemap: TONEMAP, onProgress: (x, stage) => onProgress(x * 0.9, stage) }));
-        } finally { if (jobs.get(key) === job) jobs.delete(key); }
-        info = { ...(await probe(input, { thumb: false })), timecode: info.timecode };
-        report = (x) => onProgress(0.9 + x * 0.1, 'encode');
+          info = { ...(await probe(input, { thumb: false })), timecode: info.timecode };
+          report = (x) => onProgress(0.9 + x * 0.1, 'encode');
+        }
       }
+      alive(job);
+      const { tries, ext } = buildArgs(input, info, s, gpu);
+      return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, ext), tries, report, info.duration);
+    } finally {
+      if (tmp) await remove(tmp);
     }
-    const { tries, ext } = buildArgs(input, info, s, gpu);
-    return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, ext), tries, report, info.duration);
-  } finally {
-    if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-  }
+  });
 }
 
 // AI Enhance on a photo: Real-ESRGAN ×2 / ×3 / ×4 (src/ai.js), saved in the source format ("photo Upscaled.jpg").
-async function upscaleImage(src, s, outDir, onProgress, id) {
+function upscaleImage(src, s, outDir, onProgress, id) {
   const ai = require('./ai');
-  const info = await probe(src, { thumb: false });
-  if (!info.video?.width) throw new Error('UNSUPPORTED');
-  const check = await ai.detect(FFMPEG);
-  if (!check.available) throw new Error(check.reason === 'ENGINES' ? 'AI_MISSING' : `AI_${check.reason}`);
-  const job = { aborted: false, procs: new Set() };
-  const key = id ?? Symbol('job');
-  jobs.set(key, job);
-  let up;
-  try {
-    up = await ai.upscaleImage(src, info.video, { scale: s.aiScale || 4, model: s.aiModel || 'fast' }, { FFMPEG, job, onProgress: (x) => onProgress(x * 0.95, 'upscale') });
-  } finally { if (jobs.get(key) === job) jobs.delete(key); }
-  try {
-    const target = ext(src) === 'jpeg' ? 'jpg' : ext(src);
-    return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, target), [['-i', up.file, ...encodeArgs(src, target)]], (x) => onProgress(0.95 + x * 0.05, 'encode'));
-  } finally {
-    fs.rmSync(up.tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-  }
+  return withJob(id, async (job) => {
+    const info = await probe(src, { thumb: false });
+    if (!info.video?.width) throw new Error('UNSUPPORTED');
+    const check = await ai.detect(FFMPEG);
+    if (!check.available) throw new Error(check.reason === 'ENGINES' ? 'AI_MISSING' : `AI_${check.reason}`);
+    alive(job);
+    const up = await ai.upscaleImage(src, info.video, { scale: s.aiScale || 4, model: s.aiModel || 'fast' }, { FFMPEG, job, onProgress: (x) => onProgress(x * 0.95, 'upscale') });
+    try {
+      const target = ext(src) === 'jpeg' ? 'jpg' : ext(src);
+      return await produce(id, outPath(src, outDir, `${path.parse(src).name}${s.suffix}`, target), [['-i', up.file, ...encodeArgs(src, target)]], (x) => onProgress(0.95 + x * 0.05, 'encode'));
+    } finally { await remove(up.tmp); }
+  });
 }
 
 const AUDIO_OUT = ['mp3', 'wav', 'flac', 'm4a'];
@@ -446,34 +456,37 @@ const EXTRACT_ADV = { track: /^(first|mix|[1-9]\d?)$/, channels: /^(keep|mono|sp
 // An audio track → audio file, with optional cleanup (low-cut, FFT denoise, loudness normalization)
 // and pro options: which track (or a mix of all), mono / split L-R into two files, 24-bit, sample rate.
 // Returns the output path (for "split", the left-channel file; the right one sits next to it).
-async function extract(src, opts = {}, outDir, onProgress = () => {}, id) {
+async function extract(src, opts = {}, outDir, onProgress = () => {}, id = Symbol('job')) {
   const { format, loudness, denoise, lowcut, track = 'first', channels = 'keep', depth = '16', rate = 'source' } = opts;
   const kind = kindOf(src);
   if ((kind !== 'video' && kind !== 'audio') || !AUDIO_OUT.includes(format)) throw new Error('UNSUPPORTED');
   if (loudness && !LOUDNESS.includes(Number(loudness))) throw new Error('UNSUPPORTED');
   for (const [k, re] of Object.entries(EXTRACT_ADV)) if (!re.test(String({ track, channels, depth, rate }[k]))) throw new Error('UNSUPPORTED');
-  const info = await probe(src, { thumb: false });
-  const n = info.audios.length;
-  if (!n) throw new Error('NO_AUDIO');
-  const index = track === 'mix' || track === 'first' ? 0 : Number(track) - 1;
-  if (index >= n) throw new Error('NO_AUDIO');
-  const af = [lowcut && 'highpass=f=80', denoise && 'afftdn=nf=-25', loudness && `loudnorm=I=${Number(loudness)}:TP=-1.5:LRA=11`].filter(Boolean);
-  const input = track === 'mix' && n > 1 ? `${info.audios.map((_, i) => `[0:a:${i}]`).join('')}amix=inputs=${n}:normalize=0` : `[0:a:${index}]anull`;
-  const codec = format === 'wav' ? ['-c:a', depth === '24' ? 'pcm_s24le' : 'pcm_s16le']
-    : format === 'flac' ? ['-c:a', 'flac', '-compression_level', '8', ...(depth === '24' ? ['-sample_fmt', 's32', '-bits_per_raw_sample', '24'] : [])]
-      : encodeArgs(src, format).filter((a) => a !== '-vn');
-  // loudnorm resamples to 192 kHz internally, so a filtered file always gets a standard rate.
-  const ar = rate !== 'source' ? ['-ar', rate] : af.length ? ['-ar', '48000'] : [];
-  const base = path.parse(src).name;
-  const job = (label, chain, extra = []) => produce(id, outPath(src, outDir, base + label, format),
-    [['-i', src, '-filter_complex', `${input}${chain ? `,${chain}` : ''}${af.length ? `,${af.join(',')}` : ''}[a]`, '-map', '[a]', '-vn', ...codec, ...ar, ...extra, '-map_metadata', '0']],
-    onProgress, info.duration);
-  if (channels === 'split') { // e.g. lav mic on channel 1, camera mic on channel 2
-    const left = await job(' L', 'pan=mono|c0=c0');
-    await job(' R', 'pan=mono|c0=c1');
-    return left;
-  }
-  return job('', '', channels === 'mono' ? ['-ac', '1'] : []);
+  return withJob(id, async (job) => {
+    const info = await probe(src, { thumb: false });
+    alive(job);
+    const n = info.audios.length;
+    if (!n) throw new Error('NO_AUDIO');
+    const index = track === 'mix' || track === 'first' ? 0 : Number(track) - 1;
+    if (index >= n) throw new Error('NO_AUDIO');
+    const af = [lowcut && 'highpass=f=80', denoise && 'afftdn=nf=-25', loudness && `loudnorm=I=${Number(loudness)}:TP=-1.5:LRA=11`].filter(Boolean);
+    const input = track === 'mix' && n > 1 ? `${info.audios.map((_, i) => `[0:a:${i}]`).join('')}amix=inputs=${n}:normalize=0` : `[0:a:${index}]anull`;
+    const codec = format === 'wav' ? ['-c:a', depth === '24' ? 'pcm_s24le' : 'pcm_s16le']
+      : format === 'flac' ? ['-c:a', 'flac', '-compression_level', '8', ...(depth === '24' ? ['-sample_fmt', 's32', '-bits_per_raw_sample', '24'] : [])]
+        : encodeArgs(src, format).filter((a) => a !== '-vn');
+    // loudnorm resamples to 192 kHz internally, so a filtered file always gets a standard rate.
+    const ar = rate !== 'source' ? ['-ar', rate] : af.length ? ['-ar', '48000'] : [];
+    const base = path.parse(src).name;
+    const file = (label, chain, extra = []) => produce(id, outPath(src, outDir, base + label, format),
+      [['-i', src, '-filter_complex', `${input}${chain ? `,${chain}` : ''}${af.length ? `,${af.join(',')}` : ''}[a]`, '-map', '[a]', '-vn', ...codec, ...ar, ...extra, '-map_metadata', '0']],
+      onProgress, info.duration);
+    if (channels === 'split') { // e.g. lav mic on channel 1, camera mic on channel 2
+      const left = await file(' L', 'pan=mono|c0=c0');
+      await file(' R', 'pan=mono|c0=c1');
+      return left;
+    }
+    return file('', '', channels === 'mono' ? ['-ac', '1'] : []);
+  });
 }
 
 module.exports = { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, encoders, setEncoder, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };

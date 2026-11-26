@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('api', {
   setPrefs: (p) => ipcRenderer.invoke('prefs', p),
   hardware: (fresh) => ipcRenderer.invoke('hardware', fresh),
   driverPage: (vendor) => ipcRenderer.invoke('driver-page', vendor),
+  openLogs: () => ipcRenderer.invoke('open-logs'),
+  startDrag: (file) => ipcRenderer.send('drag-out', file),
+  presets: {
+    export: (list) => ipcRenderer.invoke('presets-export', list),
+    import: () => ipcRenderer.invoke('presets-import'),
+  },
   cancel: (id) => ipcRenderer.invoke('cancel', id),
   taskbar: (p) => ipcRenderer.invoke('taskbar', p),
   onProgress: (cb) => ipcRenderer.on('progress', (_e, d) => cb(d)),

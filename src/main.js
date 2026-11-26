@@ -1,10 +1,20 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, powerSaveBlocker, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, encoders, setEncoder, kindOf, TARGETS, cancel, killAll, FFMPEG } = require('./convert');
 const dl = require('./download');
 const ai = require('./ai');
+const { createLog } = require('./log');
+const { readable } = require('./errors');
+const presets = require('./presets');
+
+const logsDir = () => app.getPath('logs');
+const log = createLog(() => path.join(logsDir(), 'main.log'));
+process.on('uncaughtException', (e) => log('error', 'uncaught exception', e));
+process.on('unhandledRejection', (e) => log('error', 'unhandled rejection', e));
+app.on('render-process-gone', (_e, _wc, d) => log('error', 'window process gone', d));
+app.on('child-process-gone', (_e, d) => log('warn', 'child process gone', d));
 
 // Windows taskbar/notification identity; must equal build.appId (the installer stamps it on the shortcuts).
 // Dev runs (plain electron.exe, Electron logo) get their own ID: if they share the app's ID, Windows ties that ID
@@ -26,6 +36,10 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), autoplayPolicy: 'no-user-gesture-required' }, // success chime after a long job
   });
   win.setMenu(null);
+  // The window only ever shows src/index.html: a dropped link or a stray <a> never navigates it or opens a window.
+  // Reloading that same page stays allowed (switching language reloads the window).
+  win.webContents.on('will-navigate', (e, url) => { if (url.split('#')[0] !== win.webContents.getURL().split('#')[0]) e.preventDefault(); });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.once('ready-to-show', () => win.show());
   // Closing in the middle of an export / AI job / download would throw the work away: ask first.
   win.on('close', (e) => {
@@ -58,16 +72,17 @@ const progress = (e, id) => (p, stage) => e.sender.send('progress', { id, p, sta
 // Targets starting with '@' are presets (engine validates the advanced overrides); others are plain formats.
 // A plain video format with AI targets goes through the "Clean export" pipeline in that container.
 ipcMain.handle('convert', (e, { id, src, target, outDir, advanced = {} }) => {
-  if (String(target).startsWith('@')) return awake(encode(src, target.slice(1), advanced, outDir, progress(e, id), id));
+  const what = `convert ${path.basename(src)} → ${target} ${JSON.stringify(advanced)}`;
+  if (String(target).startsWith('@')) return awake(encode(src, target.slice(1), advanced, outDir, progress(e, id), id), what);
   if (aiRequested(advanced) && kindOf(src) === 'video' && ['mp4', 'mov', 'mkv'].includes(target)) {
-    return awake(encode(src, 'youtube', { ...advanced, container: target }, outDir, progress(e, id), id));
+    return awake(encode(src, 'youtube', { ...advanced, container: target }, outDir, progress(e, id), id), what);
   }
-  return awake(convert(src, target, outDir, progress(e, id), id));
+  return awake(convert(src, target, outDir, progress(e, id), id), what);
 });
 ipcMain.handle('gpu', () => detectGpu());
 ipcMain.handle('ai-info', (_e, fresh) => ai.detect(FFMPEG, fresh));
-ipcMain.handle('trim', (e, { id, src, range, outDir }) => awake(trim(src, range, outDir, progress(e, id), id)));
-ipcMain.handle('extract', (e, { id, src, options, outDir }) => awake(extract(src, options, outDir, progress(e, id), id)));
+ipcMain.handle('trim', (e, { id, src, range, outDir }) => awake(trim(src, range, outDir, progress(e, id), id), `trim ${path.basename(src)} ${JSON.stringify(range)}`));
+ipcMain.handle('extract', (e, { id, src, options, outDir }) => awake(extract(src, options, outDir, progress(e, id), id), `extract ${path.basename(src)} ${JSON.stringify(options)}`));
 ipcMain.handle('strip', (_e, src, duration) => strip(src, duration));
 
 ipcMain.handle('clipboard', () => clipboard.readText());
@@ -92,17 +107,54 @@ ipcMain.handle('dl-version', (_e, bin) => { dl.setBinary(bin || bundledYtdlp());
 ipcMain.handle('dl-pick-binary', async () => (await dialog.showOpenDialog({
   title: 'yt-dlp.exe', properties: ['openFile'], filters: [{ name: 'yt-dlp', extensions: ['exe'] }],
 })).filePaths[0]);
-ipcMain.handle('dl-update', () => dl.update());
-ipcMain.handle('dl-analyze', (_e, url) => dl.analyze(url));
+ipcMain.handle('dl-update', () => dl.update().catch((e) => { log('error', 'yt-dlp update', e); throw readable(e); }));
+ipcMain.handle('dl-analyze', (_e, url) => dl.analyze(url).catch((e) => { log('warn', 'analyze link', e); throw readable(e); }));
 ipcMain.handle('dl-cancel', (_e, id) => dl.cancel(id));
-ipcMain.handle('dl-start', (e, { id, url, fmt, quality, outDir }) =>
-  awake(dl.download(id, url, { fmt, quality, outDir }, (p) => e.sender.send('dl-progress', { id, ...p }))));
+ipcMain.handle('dl-start', (e, { id, url, fmt, quality, outDir, section }) =>
+  awake(dl.download(id, url, { fmt, quality, outDir, section }, (p) => e.sender.send('dl-progress', { id, ...p })), `download ${fmt} ${quality}${section ? ` ${section.start}-${section.end}s` : ''}`));
 
 // ---- Settings (stored by the renderer, applied here): video encoder, AI graphics card, keep the PC awake.
 let keepAwake = true, running = 0, blocker = null;
-function awake(job) { // no sleep / suspend while any job runs (the screen may still turn off)
+// Files this app wrote in this session: the only paths the window may start a drag with.
+const produced = new Set();
+let dragIcon;
+// A finished file dragged from its row straight into Premiere Pro, DaVinci Resolve, Explorer…
+ipcMain.on('drag-out', (e, file) => {
+  if (!produced.has(file) || !fs.existsSync(file)) return;
+  dragIcon ||= nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 48, height: 48 });
+  e.sender.startDrag({ file, icon: dragIcon });
+});
+
+// Personal presets: JSON files in and out, every value checked (src/presets.js).
+ipcMain.handle('presets-export', async (e, list) => {
+  const json = presets.serialize(list);
+  const { filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), {
+    defaultPath: path.join(app.getPath('documents'), list.length === 1 ? `${list[0].name.replace(/[\\/:*?"<>|]/g, '_')}.mediaflow.json` : 'MediaFlow presets.mediaflow.json'),
+    filters: [{ name: 'MediaFlow presets', extensions: ['json'] }],
+  });
+  if (!filePath) return null;
+  await fs.promises.writeFile(filePath, json);
+  return filePath;
+});
+ipcMain.handle('presets-import', async (e) => {
+  const { filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+    properties: ['openFile'], filters: [{ name: 'MediaFlow presets', extensions: ['json'] }],
+  });
+  if (!filePaths[0]) return null;
+  if ((await fs.promises.stat(filePaths[0])).size > 1 << 20) throw new Error('PRESET_INVALID');
+  return presets.parse(await fs.promises.readFile(filePaths[0], 'utf8'));
+});
+// Every job goes through here: no sleep / suspend while any job runs (the screen may still turn off), failures are
+// logged with the tool's output and turned into codes the window explains in the user's language.
+function awake(job, what = 'job') {
   if (++running === 1 && keepAwake) blocker = powerSaveBlocker.start('prevent-app-suspension');
-  return Promise.resolve(job).finally(() => {
+  return Promise.resolve(job).then((out) => {
+    if (typeof out === 'string') produced.add(out); // may be dragged out of the window (see 'drag-out')
+    return out;
+  }, (e) => {
+    if (e?.message !== 'CANCELLED') log('error', what, e);
+    throw readable(e);
+  }).finally(() => {
     if (--running === 0 && blocker !== null) { powerSaveBlocker.stop(blocker); blocker = null; }
   });
 }
@@ -123,6 +175,7 @@ ipcMain.handle('hardware', async (_e, fresh) => {
 // Driver download pages, by vendor key only (the renderer never passes a URL).
 const VENDORS = { 0x10de: 'nvidia', 0x1002: 'amd', 0x8086: 'intel' };
 const DRIVERS = { nvidia: 'https://www.nvidia.com/Download/index.aspx', amd: 'https://www.amd.com/en/support/download/drivers.html', intel: 'https://www.intel.com/content/www/us/en/support/detect.html' };
+ipcMain.handle('open-logs', async () => { await fs.promises.mkdir(logsDir(), { recursive: true }); return shell.openPath(logsDir()); });
 ipcMain.handle('driver-page', (_e, vendor) => DRIVERS[vendor] && shell.openExternal(DRIVERS[vendor]));
 
 // ---- Auto-update from GitHub Releases (build.publish in package.json; release assets latest.yml + blockmap).
@@ -134,14 +187,16 @@ const portable = Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
 const sendUpdate = (state, extra = {}) => BrowserWindow.getAllWindows()[0]?.webContents.send('update', { state, portable, ...extra });
 autoUpdater.autoDownload = false; // the user clicks "Update" first
 autoUpdater.autoInstallOnAppQuit = true; // downloaded but not restarted yet → installs when the app closes
-// Local end-to-end tests only: point the updater at a folder served over HTTP instead of GitHub.
-if (process.env.MEDIAFLOW_UPDATE_FEED) autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MEDIAFLOW_UPDATE_FEED });
+// Development only: point the updater at a folder served over HTTP instead of GitHub. Never in the shipped app,
+// where an environment variable must not be able to swap the update source.
+const devFeed = !app.isPackaged && process.env.MEDIAFLOW_UPDATE_FEED;
+if (devFeed) autoUpdater.setFeedURL({ provider: 'generic', url: devFeed });
 autoUpdater.on('update-available', (i) => sendUpdate('available', { version: i.version }));
 autoUpdater.on('update-not-available', () => sendUpdate('latest', { version: app.getVersion() }));
 autoUpdater.on('download-progress', (p) => sendUpdate('downloading', { percent: p.percent, speed: p.bytesPerSecond }));
 autoUpdater.on('update-downloaded', (i) => sendUpdate('ready', { version: i.version }));
-autoUpdater.on('error', (e) => sendUpdate('error', { message: String(e?.message || e).split('\n')[0] }));
-const canUpdate = () => app.isPackaged || Boolean(process.env.MEDIAFLOW_UPDATE_FEED);
+autoUpdater.on('error', (e) => { log('warn', 'update', e); sendUpdate('error', { message: String(e?.message || e).split('\n')[0] }); });
+const canUpdate = () => app.isPackaged || Boolean(devFeed);
 ipcMain.handle('app-version', () => app.getVersion());
 ipcMain.handle('update-check', () => (canUpdate() ? autoUpdater.checkForUpdates().catch(() => {}) : sendUpdate('dev', { version: app.getVersion() })));
 ipcMain.handle('update-download', () => (portable ? shell.openExternal(RELEASES) : autoUpdater.downloadUpdate().catch(() => {})));
@@ -165,14 +220,16 @@ function repairShortcuts() {
   }
 }
 
-// AI temp folders left behind by a crash or a forced shutdown (a normal run always deletes its own).
-function cleanStaleTemp() {
+// Temp folders (AI frames mediaflow-ai-*, downloads mediaflow-*) left behind by a crash or a forced shutdown
+// (a normal run always deletes its own). Asynchronous: a large AI folder never freezes the window.
+async function cleanStaleTemp() {
   const dayAgo = Date.now() - 24 * 3600e3;
-  for (const d of fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-ai-'))) {
+  const names = await fs.promises.readdir(os.tmpdir()).catch(() => []);
+  for (const d of names.filter((n) => n.startsWith('mediaflow-'))) {
     const p = path.join(os.tmpdir(), d);
-    try { if (fs.statSync(p).mtimeMs < dayAgo) fs.rmSync(p, { recursive: true, force: true }); } catch {}
+    try { if ((await fs.promises.stat(p)).mtimeMs < dayAgo) await fs.promises.rm(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch {}
   }
 }
-app.whenReady().then(() => { createWindow(); encoders(); setTimeout(() => { cleanStaleTemp(); repairShortcuts(); }, 5000); }); // GPU test runs once, in the background
+app.whenReady().then(() => { log('info', `MediaFlow Studio ${app.getVersion()} started (${os.release()}, ${app.isPackaged ? 'installed' : 'dev'})`); createWindow(); encoders(); setTimeout(() => { cleanStaleTemp(); repairShortcuts(); }, 5000); }); // GPU test runs once, in the background
 app.on('before-quit', () => { killAll(); dl.cancel(); }); // don't leave orphan ffmpeg / yt-dlp processes running
 app.on('window-all-closed', () => app.quit());

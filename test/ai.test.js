@@ -10,6 +10,26 @@ const { encode, cancel, probe, FFMPEG, detectGpu, encoders, setEncoder } = requi
 
 const info = (height, fps, extra = {}) => ({ video: { width: Math.round(height * 16 / 9), height, fps, baseFps: fps, rotation: 0, ...extra } });
 
+test('enhance refuses a video without a known duration (it would stop after one chunk)', async () => {
+  const p = ai.plan({ video: { width: 640, height: 360, fps: 30 } }, { height: '720' });
+  for (const duration of [0, NaN, undefined]) {
+    await assert.rejects(ai.enhance('x.mp4', { duration, video: { width: 640, height: 360, fps: 30 } }, p, { FFMPEG, job: { aborted: false, procs: new Set() } }), /AI_NO_DURATION/);
+  }
+});
+
+test('enhance checks free disk space before writing anything', async () => {
+  const info = { duration: 1e7, video: { width: 3840, height: 2160, fps: 60 } };
+  const p = ai.plan(info, { height: '2160', fps: '120', model: 'quality', restore: true });
+  assert.ok(ai.diskNeeded(info, p) > ai.diskNeeded({ ...info, duration: 10 }, p));
+  await assert.rejects(ai.enhance('x.mp4', info, p, { FFMPEG, job: { aborted: false, procs: new Set() } }), /DISK_FULL:\d+/);
+});
+
+test('a hung engine is stopped after its timeout', async () => {
+  const job = { aborted: false, procs: new Set() };
+  await assert.rejects(ai.run(job, FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'nullsrc', '-f', 'null', '-'], null, 500), /AI_TIMEOUT/);
+  assert.strictEqual(job.procs.size, 0);
+});
+
 test('plan: a plain target only uses the AI when it is higher than the source', () => {
   assert.deepStrictEqual(pick(ai.plan(info(720, 30), { height: 1080 })), { upscale: true, scale: 2, mult: 1, ai: true });
   assert.deepStrictEqual(pick(ai.plan(info(480, 30), { height: 2160 })), { upscale: true, scale: 4, mult: 1, ai: true }); // ×4.5 → AI ×4 + lanczos

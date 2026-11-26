@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { encode, extract, probe, detectGpu, settingsFor, buildArgs, FFMPEG } = require('../src/convert');
+const { encode, extract, probe, detectGpu, settingsFor, buildArgs, cancel, FFMPEG } = require('../src/convert');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pro-'));
 const out = path.join(dir, 'out');
@@ -80,6 +80,19 @@ test('Advanced: DNxHR HQ in MXF, mixed tracks', async () => {
   const p = await probe(dnx);
   assert.deepStrictEqual([path.extname(dnx), p.video.codec, p.audio.codec], ['.mxf', 'dnxhd', 'pcm_s16le']); // Proxy keeps its PCM 16-bit
   assert.strictEqual((await probe(await encode(s('tracks.mov'), 'youtube', { tracks: 'mix', gpu: 'off' }, out))).audios.length, 1);
+});
+
+test('Audio "Copy" + "Mix" tracks: the mix is re-encoded instead of failing', async () => {
+  const { tries } = buildArgs(s('tracks.mov'), await probe(s('tracks.mov'), { thumb: false }), settingsFor('youtube', { audio: 'copy', tracks: 'mix' }), null);
+  assert.ok(!tries[0].join(' ').includes('-c:a copy'), tries[0].join(' '));
+  const p = await probe(await encode(s('tracks.mov'), 'youtube', { audio: 'copy', tracks: 'mix', gpu: 'off' }, out));
+  assert.deepStrictEqual([p.audios.length, p.audio.codec], [1, 'aac']);
+});
+
+test('Presets: cancel during the probe stops the job before any encode', async () => {
+  const job = encode(s('cfr.mp4'), 'youtube', { gpu: 'off' }, out, () => {}, 'early-preset');
+  cancel('early-preset');
+  await assert.rejects(job, /CANCELLED/);
 });
 
 test('GPU: detected encoder is used, a failing one falls back to the CPU', async () => {

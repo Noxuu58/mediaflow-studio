@@ -4,11 +4,16 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { analyze, download, cancel, version } = require('../src/download');
+const { analyze, download, cancel, version, SAFE, OUTPUT } = require('../src/download');
 
 const URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 const LONG = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'; // Big Buck Bunny (CC-BY), only used to test cancel
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-'));
+
+test('yt-dlp never reads a config file, and file names carry the video id', () => {
+  assert.ok(SAFE.includes('--ignore-config'));
+  assert.match(OUTPUT, /\[%\(id\)s\]\.%\(ext\)s$/);
+});
 
 test('yt-dlp downloads', async (t) => {
   if (!(await version())) return t.skip('yt-dlp absent');
@@ -32,6 +37,14 @@ test('yt-dlp downloads', async (t) => {
       assert.ok(seen.every((p) => p.p >= 0 && p.p <= 1));
     });
   }
+
+  await t.test('download only a part of the video (2 s → 6 s)', async () => {
+    const { probe } = require('../src/convert');
+    const file = await download('part', URL, { fmt: 'mp4', quality: '240', outDir: out, section: { start: 2, end: 6 } });
+    assert.match(path.basename(file), /\[jNQXAC9IVRw\] 0m02\.0s-0m06\.0s\.mp4$/);
+    const d = (await probe(file, { thumb: false })).duration;
+    assert.ok(Math.abs(d - 4) < 1.2, `duration ${d}`);
+  });
 
   await t.test('cancel kills the job and cleans the temp folder', async () => {
     const before = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('mediaflow-') && !n.startsWith('mediaflow-ai-')) /* AI tests run in parallel */.length;

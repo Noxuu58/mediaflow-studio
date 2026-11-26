@@ -16,11 +16,16 @@ function setRuntime(execPath) {
   ENV.ELECTRON_RUN_AS_NODE = '1';
 }
 
+// Always first on the command line: a yt-dlp.conf in the output folder, %APPDATA% or next to the exe never applies.
+const SAFE = ['--ignore-config'];
+// Title + id: two videos with the same title never overwrite each other.
+const OUTPUT = '%(title).140B [%(id)s].%(ext)s';
+
 const VIDEO = ['mp4', 'mov', 'mkv'];
 const AUDIO = ['mp3', 'm4a', 'wav', 'flac', 'opus'];
 
 function exec(args, timeout = 120000) {
-  return new Promise((resolve, reject) => execFile(YTDLP, args, { env: ENV, windowsHide: true, timeout, maxBuffer: 64 << 20 },
+  return new Promise((resolve, reject) => execFile(YTDLP, [...SAFE, ...args], { env: ENV, windowsHide: true, timeout, maxBuffer: 64 << 20 },
     (err, stdout, stderr) => err ? reject(Object.assign(err, { stderr })) : resolve(stdout)));
 }
 const errorLine = (text, fallback) =>
@@ -31,10 +36,26 @@ const update = () => exec(['-U'], 180000).then((o) => o.trim().split(/\r?\n/).po
 
 async function analyze(url) {
   let json;
-  try { json = JSON.parse(await exec([...RUNTIME, '-J', '--no-playlist', '--no-warnings', '--', url])); } // `--`: a pasted "-x…" is never read as an option
+  // --flat-playlist: a playlist link lists its videos at once instead of reading every one of them (minutes).
+  try { json = JSON.parse(await exec([...RUNTIME, '-J', '--no-playlist', '--flat-playlist', '--no-warnings', '--', url])); } // `--`: a pasted "-x…" is never read as an option
   catch (e) { throw new Error(errorLine(e.stderr, 'UNREADABLE')); }
-  // shortcut: playlists are refused, add per-entry download if needed.
-  if (json._type === 'playlist') throw new Error(`PLAYLIST:${json.entries?.length ?? '?'}`);
+  return toInfo(json, url);
+}
+
+const MAX_ENTRIES = 1000;
+const thumbOf = (j) => j.thumbnail || j.thumbnails?.at(-1)?.url || null;
+// yt-dlp's JSON → what the window shows. A playlist lists its videos (links that yt-dlp can download one by one).
+function toInfo(json, url) {
+  if (json._type === 'playlist') {
+    const entries = (json.entries || []).map((e) => ({ url: e.url || e.webpage_url, title: e.title || e.id || '', duration: e.duration || 0, thumbnail: thumbOf(e) }))
+      .filter((e) => /^https?:\/\//i.test(e.url || '')).slice(0, MAX_ENTRIES);
+    if (!entries.length) throw new Error('UNREADABLE');
+    return {
+      playlist: true, url: json.webpage_url || url, title: json.title || 'Playlist', uploader: json.uploader || json.channel || '',
+      site: (json.extractor_key || '').replace(/Tab$/, ''), thumbnail: thumbOf(json) || entries.find((e) => e.thumbnail)?.thumbnail || null,
+      hasVideo: true, heights: [], duration: entries.reduce((a, e) => a + e.duration, 0), entries,
+    };
+  }
   const video = (json.formats || []).filter((f) => f.vcodec && f.vcodec !== 'none' && f.height);
   return {
     url: json.webpage_url || url,
@@ -62,6 +83,19 @@ function formatArgs(fmt, quality) {
   throw new Error('UNSUPPORTED');
 }
 
+// Only a part of the video: yt-dlp downloads just that range (frame-accurate for video: cut points get keyframes).
+// The file name says which part, so two passages of one video never collide. Seconds in, BAD_RANGE when invalid.
+const stamp = (s) => `${Math.floor(s / 60)}m${(s % 60).toFixed(1).padStart(4, '0')}s`;
+function sectionArgs(fmt, section) {
+  if (!section) return { args: [], output: OUTPUT };
+  const start = Number(section.start), end = Number(section.end);
+  if (!(start >= 0 && end > start && Number.isFinite(end))) throw new Error('BAD_RANGE');
+  return {
+    args: ['--download-sections', `*${start}-${end}`, ...(VIDEO.includes(fmt) ? ['--force-keyframes-at-cuts'] : [])],
+    output: OUTPUT.replace('.%(ext)s', ` ${stamp(start)}-${stamp(end)}.%(ext)s`),
+  };
+}
+
 const running = new Map(); // id -> child
 function cancel(id) {
   for (const [k, p] of running) if (id == null || k === id) {
@@ -78,13 +112,14 @@ async function download(...args) {
   }
 }
 
-function attempt(id, url, { fmt, quality = 'best', outDir }, onProgress = () => {}) {
+function attempt(id, url, { fmt, quality = 'best', outDir, section }, onProgress = () => {}) {
+  const part = sectionArgs(fmt, section);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mediaflow-'));
   // Killed processes release file handles a moment after exiting: retry, and never let cleanup fail the job.
   const cleanup = () => fs.promises.rm(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
   const outFile = path.join(tmp, 'out.txt');
-  const args = [...RUNTIME, ...formatArgs(fmt, quality), '--embed-metadata', '--no-playlist', '--newline', '--no-colors',
-    '--ffmpeg-location', FFMPEG, '-P', outDir, '-P', `temp:${tmp}`, '-o', '%(title).150B.%(ext)s',
+  const args = [...SAFE, ...RUNTIME, ...formatArgs(fmt, quality), ...part.args, '--embed-metadata', '--no-playlist', '--newline', '--no-colors',
+    '--ffmpeg-location', FFMPEG, '-P', outDir, '-P', `temp:${tmp}`, '-o', part.output,
     '--progress-template', 'download:MFP %(progress.downloaded_bytes)s %(progress.total_bytes)s %(progress.total_bytes_estimate)s %(progress.speed)s %(progress.eta)s',
     '--print-to-file', 'after_move:filepath', outFile, '--', url];
   return new Promise((resolve, reject) => {
@@ -120,4 +155,4 @@ function attempt(id, url, { fmt, quality = 'best', outDir }, onProgress = () => 
   });
 }
 
-module.exports = { analyze, download, cancel, version, update, setBinary, setRuntime, VIDEO, AUDIO };
+module.exports = { analyze, download, cancel, version, update, setBinary, setRuntime, toInfo, sectionArgs, VIDEO, AUDIO, SAFE, OUTPUT };

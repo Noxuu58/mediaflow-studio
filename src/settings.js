@@ -35,6 +35,8 @@ const Settings = (() => {
           <h3>${t('set.jobs')}</h3>
           <div class="set-row"><span><b>${t('set.awake')}</b><small>${t('set.awakeSub')}</small></span>
             <button class="switch" id="set-awake" type="button" role="switch" aria-label="${esc(t('set.awake'))}"><i></i></button></div>
+          <div class="set-row"><span><b>${t('set.logs')}</b><small>${t('set.logsSub')}</small></span>
+            <button class="ghost sm" id="set-logs" type="button">${App.icons.folder}${t('set.openLogs')}</button></div>
         </section>
         <footer class="modal-foot"><small id="set-version"></small><button class="ghost sm" id="set-rescan" type="button">${App.icons.retry}${t('set.rescan')}</button></footer>
       </div>`;
@@ -45,6 +47,7 @@ const Settings = (() => {
     $('#set-encoder').onchange = (e) => App.setPref('pref.encoder', e.target.value);
     $('#set-test').onclick = () => testAi(true);
     $('#set-rescan').onclick = () => load(true);
+    $('#set-logs').onclick = () => window.api.openLogs();
     $('#set-lang').onchange = (e) => { if (!App.setLang(e.target.value)) e.target.value = I18n.lang; };
     $('#set-sound').onclick = () => { App.setMuted(!App.muted); if (!App.muted) App.sfx('toggle'); switches(); };
     $('#set-awake').onclick = () => { const on = !App.prefs().keepAwake; App.setPref('pref.awake', on ? '1' : '0'); switches(); };
@@ -111,12 +114,16 @@ const Settings = (() => {
     box.querySelector('[data-settings]')?.addEventListener('click', open);
   }
 
+  // Everything behind the dialog (the toast stays live so its messages are still read out).
+  const setInert = (on) => document.querySelectorAll('body > .sidebar, body > .main, body > #update').forEach((n) => { n.inert = on; });
+
   function open() {
     if (!el) build();
     if (!el.hidden) return;
     lastFocus = document.activeElement;
     el.hidden = false;
     document.body.classList.add('modal-open');
+    setInert(true); // focus and screen readers stay inside the dialog
     switches();
     load(false);
     el.querySelector('.modal-card').focus(); // focus inside the dialog without a ring on the close button
@@ -125,6 +132,7 @@ const Settings = (() => {
     if (!el || el.hidden) return;
     el.hidden = true;
     document.body.classList.remove('modal-open');
+    setInert(false);
     lastFocus?.focus?.();
   }
 

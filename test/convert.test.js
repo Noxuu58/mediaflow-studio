@@ -126,6 +126,21 @@ test('cancel(id) stops only that job', async () => {
   assert.ok(fs.existsSync(await b), 'the other job finished');
 });
 
+test('cancel works from the first instant, even while the file is still being probed', async () => {
+  const here = fs.mkdtempSync(path.join(dir, 'early-'));
+  const job = extract(s('clip.mp4'), { format: 'wav' }, here, () => {}, 'early');
+  cancel('early');
+  await assert.rejects(job, /CANCELLED/);
+  assert.deepStrictEqual(fs.readdirSync(here), []);
+});
+
+test('jobs started together never pick the same output name', async () => {
+  const here = fs.mkdtempSync(path.join(dir, 'same-'));
+  const files = await Promise.all([1, 2, 3].map(() => convert(s('tone.wav'), 'mp3', here)));
+  assert.strictEqual(new Set(files).size, 3, files.join(' | '));
+  for (const f of files) assert.ok(fs.statSync(f).size > 1000, f);
+});
+
 test('unsupported pair rejected', async () => {
   await assert.rejects(convert(s('tone.wav'), 'png', out));
 });

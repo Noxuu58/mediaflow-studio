@@ -6,7 +6,7 @@
   color-scheme: dark;
   --text: #f5f5f7;
   --text-2: rgba(235, 235, 245, 0.68);
-  --text-3: rgba(235, 235, 245, 0.42);
+  --text-3: rgba(235, 235, 245, 0.55); /* ≥ 4.5:1 on the darkest surface (WCAG AA) */
   --line: rgba(255, 255, 255, 0.08);
   --accent: #0a84ff;
   --accent-2: #5ac8fa;
@@ -218,7 +218,7 @@ h1 { font: 650 26px/1.15 var(--font-display); letter-spacing: -0.03em; }
 /* Main action: electric blue with a vertical gradient and a luminous drop shadow as soon as it can run. */
 .primary {
   color: #fff; padding: 0 17px 0 19px; font-weight: 600;
-  background: linear-gradient(180deg, #3d9bff 0%, #0a84ff 55%, #0071e8 100%);
+  background: linear-gradient(180deg, #1a73e8 0%, #0066d6 55%, #005bc4 100%); /* white text ≥ 4.5:1 everywhere (WCAG AA) */
   box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(0,40,140,0.4), 0 4px 14px rgba(10,132,255,0.4), 0 0 0 0.5px rgba(120,190,255,0.6);
 }
 .primary:hover { box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(0,40,140,0.35), 0 6px 22px rgba(10,132,255,0.55), 0 0 0 0.5px rgba(150,205,255,0.8); }
@@ -655,6 +655,19 @@ optgroup { background: #232327; color: var(--text-3); font-style: normal; }
 .adv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-2); font-size: 12px; }
 .adv-head svg { width: 15px; height: 15px; color: var(--accent-2); }
 .adv-head b { flex: 1; font-weight: 600; }
+/* Personal presets in the Advanced header: pick · save · delete · import · export */
+.mine { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.mine-pick { max-width: 190px; text-transform: none; letter-spacing: 0; } /* a name keeps the case it was typed in */
+.mine-name { width: 160px; text-align: left; }
+.mine .icon:disabled { opacity: 0.3; }
+/* Downloader: only a part of the video */
+.dl-range { display: flex; gap: 14px; margin-top: 10px; color: var(--text-2); font-size: 12px; }
+.dl-range label { display: flex; align-items: center; gap: 8px; }
+.dl-range[hidden] { display: none; }
+.dl-part svg { width: 13px; height: 13px; }
+/* A finished file can be dragged out to an editor */
+.row[draggable="true"] { cursor: grab; }
+.row[draggable="true"]:active { cursor: grabbing; }
 .adv-gpu.ok { color: #7ef0a0; box-shadow: inset 0 0 0 0.5px rgba(48,209,88,0.45); background: rgba(48,209,88,0.1); }
 .adv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 12px; }
 .adv-grid .opt { flex-direction: column; align-items: stretch; gap: 5px; font-size: 11.5px; font-weight: 500; }
@@ -860,11 +873,14 @@ body.dragging .drop-ring { transform: scale(1); }
   background: linear-gradient(160deg, rgba(70,70,80,0.62), rgba(40,40,48,0.62));
   backdrop-filter: blur(30px) saturate(190%);
   box-shadow: 0 20px 50px -10px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 0 0 0.5px rgba(255,255,255,0.12);
-  font-weight: 500; white-space: nowrap; pointer-events: none;
+  font-weight: 500; pointer-events: none;
+  /* Long messages (export errors…) wrap instead of running off the window. */
+  max-width: min(620px, calc(100vw - var(--side-w) - 48px)); width: max-content; overflow-wrap: anywhere;
   transition: transform 0.6s var(--spring), opacity 0.3s, filter 0.4s;
 }
+.toast.err { border-radius: 18px; }
 .toast.show { transform: translate(-50%, 0) scale(1); opacity: 1; filter: none; }
-.toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
+.toast::before { flex: none; content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); }
 .toast.err::before { background: var(--red); box-shadow: 0 0 12px var(--red); }
 
 /* ---------------------------------------------------------------- Settings panel */
@@ -926,4 +942,9 @@ body.dragging .drop-ring { transform: scale(1); }
 .ai-alert-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .ai-alert-actions:empty { display: none; }
 
+/* Narrow windows: the action bar wraps onto two lines instead of squeezing its buttons. */
+@media (max-width: 1000px) {
+  .actionbar { flex-wrap: wrap; row-gap: 10px; }
+  .actionbar .global { order: 5; flex-basis: 100%; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

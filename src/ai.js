@@ -45,19 +45,23 @@ function plan(info, { height = 'source', fps = 'source', model = 'fast', restore
   return { srcH, srcFps, targetH, targetFps, upscale, scale, inH, outH, mult, model, ai: upscale || mult > 1 };
 }
 
-// Spawns a tracked process (cancel kills it). Rejects with its last error line, or CANCELLED.
-function run(job, bin, args, onOutput) {
+// Spawns a tracked process (cancel kills it). Rejects with its last error line, CANCELLED, or AI_TIMEOUT when
+// `timeout` ms pass (a broken Vulkan driver can hang forever instead of failing).
+function run(job, bin, args, onOutput, timeout = 0) {
   return new Promise((resolve, reject) => {
     if (job.aborted) return reject(new Error('CANCELLED'));
     const p = spawn(bin, args, { windowsHide: true, cwd: path.dirname(bin) });
     job.procs.add(p);
-    let err = '';
+    let err = '', timedOut = false;
+    const timer = timeout && setTimeout(() => { timedOut = true; p.kill(); }, timeout);
     const collect = (d) => { err = (err + d).slice(-4000); onOutput?.(String(d)); };
     p.stdout.on('data', collect);
     p.stderr.on('data', collect);
-    p.on('error', (e) => { job.procs.delete(p); reject(e); });
+    p.on('error', (e) => { clearTimeout(timer); job.procs.delete(p); reject(e); });
     p.on('close', (code) => {
+      clearTimeout(timer);
       job.procs.delete(p);
+      if (timedOut) return reject(Object.assign(new Error('AI_TIMEOUT'), { log: err }));
       if (job.aborted) return reject(new Error('CANCELLED'));
       if (code === 0) return resolve(err);
       const line = err.trim().split(/\r?\n/).filter((l) => l && !/^\d+\.\d+%$/.test(l.trim())).pop() || `code ${code}`;
@@ -67,7 +71,28 @@ function run(job, bin, args, onOutput) {
 }
 
 const frames = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.png')).sort() : []);
-const fresh = (dir) => { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); };
+// Asynchronous, with retries: never freezes the window, and survives a file a just-killed engine still holds (EBUSY).
+const remove = (p) => fs.promises.rm(p, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
+const fresh = async (dir) => { await remove(dir); await fs.promises.mkdir(dir, { recursive: true }); };
+
+// Free space the AI needs in %TEMP%, in bytes: one chunk of PNG frames at each step, the encoded chunks and their
+// concatenation (both exist for a moment), plus the VFR / HDR preparation file. Generous on purpose.
+const PNG_BYTES = 2; // per pixel, PNG of a video frame
+const CHUNK_BITS = 0.6; // per pixel, near-lossless intermediate encode
+function diskNeeded(info, p) {
+  const v = info.video;
+  const aspect = (Math.abs(v.rotation || 0) % 180 === 90 ? v.height / v.width : v.width / v.height) || 16 / 9;
+  const px = (h) => h * h * aspect;
+  const srcFrames = Math.round(info.duration * p.srcFps);
+  const work = CHUNK * PNG_BYTES * (px(p.inH || p.srcH) + (p.upscale ? px(p.outH) : 0) + (p.mult > 1 ? p.mult * px(p.outH) : 0));
+  const video = 2 * srcFrames * p.mult * px(p.upscale ? p.targetH : p.srcH) * CHUNK_BITS / 8;
+  const prep = v.vfr || v.hdr ? srcFrames * px(p.srcH) * CHUNK_BITS / 8 : 0;
+  return Math.ceil((work + video + prep) * 1.2 + 512 * 2 ** 20);
+}
+async function checkDisk(dir, need) {
+  const st = await fs.promises.statfs(dir).catch(() => null);
+  if (st && st.bavail * st.bsize < need) throw new Error(`DISK_FULL:${Math.ceil(need / 2 ** 30)}`);
+}
 
 // Vulkan driver errors → short codes the UI explains (see err.AI_* in i18n.js).
 function aiError(e) {
@@ -79,8 +104,9 @@ function aiError(e) {
   return e;
 }
 
-const tinyPng = (job, FFMPEG, file) => run(job, FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=gray:s=32x32', '-frames:v', '1', file]);
-const esrganTest = (job, tmp, extra) => run(job, ESRGAN, ['-i', path.join(tmp, 'a.png'), '-o', path.join(tmp, 'b.png'), '-n', 'realesr-animevideov3', '-s', '2', '-m', path.join(path.dirname(ESRGAN), 'models'), ...extra]);
+const TEST_TIMEOUT = 30000; // the 32×32 GPU test takes ~1 s; a hung driver must not block Settings or a job forever
+const tinyPng = (job, FFMPEG, file) => run(job, FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', 'color=gray:s=32x32', '-frames:v', '1', file], null, TEST_TIMEOUT);
+const esrganTest = (job, tmp, extra) => run(job, ESRGAN, ['-i', path.join(tmp, 'a.png'), '-o', path.join(tmp, 'b.png'), '-n', 'realesr-animevideov3', '-s', '2', '-m', path.join(path.dirname(ESRGAN), 'models'), ...extra], null, TEST_TIMEOUT);
 const listed = (log) => [...new Map([...String(log).matchAll(/^\[(\d+) ([^\]]+)\]/gm)].map((m) => [m[1], m[2].trim()]))].map(([id, name]) => ({ id, name }));
 
 // Versions from vulkaninfo (installed with the GPU driver on Windows). null when it isn't there.
@@ -117,7 +143,7 @@ function devices(FFMPEG, fresh = false) {
         const g = i >= 0 ? left.splice(i, 1)[0] : {};
         return { ...d, api: g.api || null, type: g.type || null, driver: g.driver || null };
       });
-    } catch {} finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    } catch {} finally { await remove(tmp); }
     return out;
   })());
 }
@@ -142,7 +168,7 @@ function detect(FFMPEG, fresh = false) {
       if (fs.existsSync(path.join(tmp, 'b.png'))) return { available: true, gpu: name, id };
       if (/invalid gpu device/i.test(log)) return { available: false, reason: 'GPU_GONE', id };
       return { available: false, reason: devs.length ? 'FAILED' : 'NO_GPU', gpu: name, id };
-    } catch { return { available: false, reason: 'FAILED', id }; } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    } catch { return { available: false, reason: 'FAILED', id }; } finally { await remove(tmp); }
   })());
   return checks.get(id);
 }
@@ -158,6 +184,9 @@ function chunkEncoder(gpu) {
 // Runs the AI stage. Returns { file, tmp } — the enhanced video (with the source audio) and the folder to delete.
 // onProgress(fraction 0..1, stage) with stage in 'prepare' | 'upscale' | 'interpolate' | 'encode'.
 async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = () => {} }) {
+  // The frame count comes from the duration: without it the job would stop after the first chunk.
+  if (!(info.duration > 0)) throw new Error('AI_NO_DURATION');
+  await checkDisk(os.tmpdir(), diskNeeded(info, p));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mediaflow-ai-'));
   try {
     const dir = (n) => path.join(tmp, n);
@@ -186,7 +215,7 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
       const last = k === chunks - 1;
       // RIFE needs the next chunk's first frame to interpolate across the boundary: take one extra frame.
       const take = Math.min(total - s, CHUNK) + (!last && p.mult > 1 ? 1 : 0);
-      ['in', 'up', 'mid'].forEach((d) => fresh(dir(d)));
+      await Promise.all(['in', 'up', 'mid'].map((d) => fresh(dir(d))));
       // -ss half a frame early keeps frame s and drops s-1 (accurate seek), without depending on float rounding.
       await run(job, FFMPEG, ['-v', 'error', ...(s ? ['-ss', ((s - 0.5) / p.srcFps).toFixed(6)] : []), '-i', input,
         '-map', '0:v:0', '-frames:v', String(take), '-fps_mode', 'passthrough', ...(p.inH ? ['-vf', `scale=-2:${p.inH}:flags=lanczos`] : []), path.join(dir('in'), '%08d.png')]);
@@ -205,7 +234,7 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
         const keep = (last ? count : count - 1) * p.mult; // drop what belongs to the next chunk
         const uhd = p.outH >= 1440;
         await run(job, RIFE, ['-i', cur, '-o', dir('mid'), '-m', path.join(path.dirname(RIFE), 'rife-v4.6'), '-n', String(count * p.mult), ...(uhd ? ['-u'] : []), ...gpuArgs()]);
-        frames(dir('mid')).slice(keep).forEach((f) => fs.rmSync(path.join(dir('mid'), f)));
+        await Promise.all(frames(dir('mid')).slice(keep).map((f) => fs.promises.rm(path.join(dir('mid'), f))));
         cur = dir('mid');
         done('interpolate');
       }
@@ -220,14 +249,15 @@ async function enhance(src, info, p, { FFMPEG, job, gpu, tonemap, onProgress = (
       list.push(chunk);
       done('encode');
     }
-    ['in', 'up', 'mid'].forEach((d) => fs.rmSync(dir(d), { recursive: true, force: true }));
+    await Promise.all(['in', 'up', 'mid'].map((d) => remove(dir(d))));
     fs.writeFileSync(dir('list.txt'), list.map((f) => `file '${f.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n'));
     await run(job, FFMPEG, ['-v', 'error', '-f', 'concat', '-safe', '0', '-i', dir('list.txt'), '-i', src,
       '-map', '0:v:0', '-map', '1:a?', '-c', 'copy', dir('enhanced.mkv')]);
+    await Promise.all([...list, dir('list.txt'), dir('prep.mkv')].map(remove)); // free the disk now, not after the final encode
     onProgress(1, 'encode');
     return { file: dir('enhanced.mkv'), tmp };
   } catch (e) {
-    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await remove(tmp);
     throw aiError(e);
   }
 }
@@ -251,9 +281,9 @@ async function upscaleImage(src, { width, height }, { scale = 4, model = 'fast' 
     await run(job, FFMPEG, ['-v', 'error', '-i', f('up.png'), '-vf', `scale=${width * scale}:${height * scale}:flags=lanczos`, f('out.png')]);
     return { file: f('out.png'), tmp };
   } catch (e) {
-    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await remove(tmp);
     throw aiError(e);
   }
 }
 
-module.exports = { plan, enhance, upscaleImage, MAX_SIDE, detect, devices, setGpu, available, hasVulkan, aiError, CHUNK };
+module.exports = { plan, enhance, upscaleImage, MAX_SIDE, detect, devices, setGpu, available, hasVulkan, aiError, diskNeeded, run, CHUNK };
