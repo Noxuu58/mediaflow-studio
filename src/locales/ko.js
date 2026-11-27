@@ -166,7 +166,7 @@
     "cmp.g.howList": "초과 없음 · 최고 화질",
     "cmp.g.out": "출력",
     "cmp.t.8": "8 MB",
-    "cmp.t.10": "10 MB · Discord",
+    "cmp.t.20": "20 MB · Discord",
     "cmp.t.25": "25 MB · 메일",
     "cmp.t.50": "50 MB",
     "cmp.t.100": "100 MB",

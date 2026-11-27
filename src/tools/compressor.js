@@ -2,7 +2,9 @@
 // A queue tool (see queue.js); each file picks its target size, the engine is src/compress.js (two passes).
 (() => {
   const I = App.icons, { t } = I18n, F = App.fmt;
-  const SIZES = { '@8': 8, '@10': 10, '@25': 25, '@50': 50, '@100': 100 };
+  // Sizes are decimal MB (src/compress.js keeps the file ≤ N × 10^6 bytes): 20 MB ≈ 19.07 MiB, under Discord's
+  // 20 MB limit whichever way it is counted.
+  const SIZES = { '@8': 8, '@20': 20, '@25': 25, '@50': 50, '@100': 100 };
   const sizeOf = (target, o) => SIZES[target] ?? Number(String(o.customSize || '').replace(',', '.'));
 
   Tools.compress = QueueTool({
@@ -15,7 +17,7 @@
     accept: (info) => info.kind === 'video',
     targets: () => [...Object.keys(SIZES), '@custom'],
     targetLabel: (x) => t(`cmp.t.${x.slice(1)}`),
-    defaultTarget: (it, last) => (it.targets.includes(last) ? last : '@10'),
+    defaultTarget: (it, last) => (it.targets.includes(last) ? last : '@20'),
     allowSame: true,
     options: [{ id: 'customSize', label: 'cmp.custom', type: 'text', value: '15', placeholder: '15', unit: 'unit.mb' }],
     shownOptions: (list) => new Set(list.some((it) => it.target === '@custom') ? ['customSize'] : []),

@@ -168,7 +168,7 @@ const n1 = (n, one, many) => (n === 1 ? one : many); // singular / plural (block
     "cmp.g.howList": "Nie darüber · beste Qualität",
     "cmp.g.out": "Ausgabe",
     "cmp.t.8": "8 MB",
-    "cmp.t.10": "10 MB · Discord",
+    "cmp.t.20": "20 MB · Discord",
     "cmp.t.25": "25 MB · E-Mail",
     "cmp.t.50": "50 MB",
     "cmp.t.100": "100 MB",

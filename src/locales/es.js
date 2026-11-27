@@ -168,7 +168,7 @@ const s = (n) => (n === 1 ? '' : 's'); // plural ending (block-scoped: every loc
     "cmp.g.howList": "Nunca por encima · máxima calidad",
     "cmp.g.out": "Salida",
     "cmp.t.8": "8 MB",
-    "cmp.t.10": "10 MB · Discord",
+    "cmp.t.20": "20 MB · Discord",
     "cmp.t.25": "25 MB · Correo",
     "cmp.t.50": "50 MB",
     "cmp.t.100": "100 MB",

@@ -40,6 +40,9 @@ test('compressor: bitrate plan from duration and target, smallest size when impo
   assert.strictEqual(plan({ ...info, audios: [] }, 10).audio, 0);
   assert.throws(() => plan({ ...info, duration: 3600 }, 8), /TOO_SMALL:\d+/);
   assert.throws(() => plan(info, 0), /BAD_SIZE/);
+  // Discord preset (20 MB): the budget stays under 20 × 10^6 bytes, i.e. under 20 MB counted in MB or in MiB.
+  const d = plan({ ...info, duration: 120 }, 20);
+  assert.ok(((d.video + d.audio) * 1000 * 120) / 8 <= 20e6 && 20e6 < 20 * 2 ** 20, JSON.stringify(d));
   assert.strictEqual(plan({ ...info, bitrate: 900e3 }, 100).video, 900, 'a small file never grows past its own bitrate');
 });
 
@@ -214,7 +217,7 @@ test('every text key the new tools use exists in English (so in every language)'
   const en = globalThis.MF_LOCALES.en.strings;
   const files = ['compressor', 'autocut', 'gif', 'inspector'].map((n) => fs.readFileSync(path.join(__dirname, '..', 'src', 'tools', `${n}.js`), 'utf8'));
   const keys = new Set(files.flatMap((src) => [...src.matchAll(/'((?:cmp|cut|gif|ins|q|common|unit|adv)\.[A-Za-z0-9.]+)'/g)].map((m) => m[1])));
-  for (const [p, list] of [['cmp.t.', ['8', '10', '25', '50', '100', 'custom']], ['cut.t.', ['cut', 'xml', 'edl']], ['gif.t.', ['gif', 'webp']]]) list.forEach((x) => keys.add(p + x));
+  for (const [p, list] of [['cmp.t.', ['8', '20', '25', '50', '100', 'custom']], ['cut.t.', ['cut', 'xml', 'edl']], ['gif.t.', ['gif', 'webp']]]) list.forEach((x) => keys.add(p + x));
   for (const k of ['err.TOO_SMALL', 'err.BAD_SIZE', 'err.ALL_SILENT']) keys.add(k);
   const missing = [...keys].filter((k) => !(k in en));
   assert.deepStrictEqual(missing, []);
