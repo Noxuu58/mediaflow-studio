@@ -271,6 +271,9 @@ const s = (n) => (n > 1 ? 's' : ''); // plural ending (block-scoped: every local
     "ins.f.type": "Type",
     "ins.f.title": "Name",
     "ins.f.blocks": "Blocks",
+    "dl.analyzeBusy": "Analyzing…",
+    "dl.inProgress": "This link is already being analyzed",
+    "dl.already": "Already analyzed — clear the field or paste another link to start over",
   },
 };
 }

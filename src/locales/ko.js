@@ -269,5 +269,8 @@
     "ins.f.type": "종류",
     "ins.f.title": "이름",
     "ins.f.blocks": "블록",
+    "dl.analyzeBusy": "분석 중…",
+    "dl.inProgress": "이 링크를 이미 분석하고 있습니다",
+    "dl.already": "이미 분석했습니다 — 입력란을 비우거나 다른 링크를 붙여 넣으면 다시 시작합니다",
   },
 };

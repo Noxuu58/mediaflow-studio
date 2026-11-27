@@ -269,5 +269,8 @@
     "ins.f.type": "種類",
     "ins.f.title": "名前",
     "ins.f.blocks": "ブロック",
+    "dl.analyzeBusy": "解析中…",
+    "dl.inProgress": "このリンクは解析中です",
+    "dl.already": "解析済みです — 入力欄を空にするか、別のリンクを貼り付けるとやり直せます",
   },
 };

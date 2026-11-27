@@ -550,6 +550,8 @@ b.image { color: var(--c-image); } b.audio { color: var(--c-audio); } b.video { 
 .dl-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; width: 100%; }
 .dl-opts .primary { margin-left: auto; }
 .dl-opts .primary svg { width: 16px; height: 16px; stroke-width: 2.1; }
+#dl-analyze.busy { gap: 8px; opacity: 0.85; cursor: progress; }
+#dl-analyze.busy .spinner { width: 14px; height: 14px; margin: 0; flex: none; }
 .spinner {
   width: 24px; height: 24px; border-radius: 50%; margin-bottom: 4px;
   background: conic-gradient(from 0deg, transparent, var(--accent-2));

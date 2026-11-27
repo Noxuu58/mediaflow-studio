@@ -269,5 +269,8 @@
     "ins.f.type": "类型",
     "ins.f.title": "名称",
     "ins.f.blocks": "数据块",
+    "dl.analyzeBusy": "分析中…",
+    "dl.inProgress": "正在分析此链接",
+    "dl.already": "已分析 — 清空输入框或粘贴其他链接即可重新开始",
   },
 };

@@ -9,7 +9,8 @@
   const PLAYLIST_HEIGHTS = [2160, 1440, 1080, 720, 480, 360]; // each video gets the closest it has, never more
 
   const items = new Map();
-  let root, info = null, outDir = App.store.get('dlDir'), nextId = 0, analyzing = 0, section = false;
+  let root, info = null, outDir = App.store.get('dlDir'), nextId = 0, section = false;
+  let last = null; // the link the preview is about: { url, state: 'loading' | 'ready' | 'error' }
   let line = Promise.resolve(); // playlist videos download one after another
   let mode = App.store.get('dlMode') || 'video';
   const fmt = { video: App.store.get('dlVideoFmt') || 'mp4', audio: App.store.get('dlAudioFmt') || 'mp3' };
@@ -17,25 +18,52 @@
   const qualityLabel = (m, qv) => (qv === 'best' ? t('dl.bestQuality') : m === 'video' ? `${qv}p` : `${qv} kb/s`);
 
   // ---- link analysis ---------------------------------------------------------------------------------
+  // What Analyze does for a link: 'run' (a new link, or a retry after an error), 'busy' (this link is being read),
+  // 'done' (this link is already on screen). Pasting the same link, or clicking Analyze again, never starts over.
+  const nextStep = (prev, url) => (!prev || prev.url !== url || prev.state === 'error' ? 'run' : prev.state === 'loading' ? 'busy' : 'done');
+
+  function analyzeButton(busy) {
+    const b = q('#dl-analyze');
+    b.disabled = busy;
+    b.classList.toggle('busy', busy);
+    b.setAttribute('aria-busy', String(busy));
+    b.innerHTML = busy ? `<span class="spinner"></span>${t('dl.analyzeBusy')}` : t('dl.analyze');
+  }
+
   async function analyze(text) {
     const url = (String(text || '').match(/https?:\/\/\S+/i) || [])[0];
     if (!url) return App.toast(t('dl.noLink'), true);
     q('#url').value = url;
-    const ticket = ++analyzing; // a newer paste wins over a slower, older analysis
+    const step = nextStep(last, url);
+    if (step !== 'run') return App.toast(t(step === 'busy' ? 'dl.inProgress' : 'dl.already'));
+    const me = last = { url, state: 'loading' }; // a newer link wins over a slower, older analysis
     info = null;
     renderPreview('loading');
+    analyzeButton(true);
     try {
       const res = await window.api.dl.analyze(url);
-      if (ticket !== analyzing) return;
+      if (me !== last) return;
+      me.state = 'ready';
       info = res;
       if (!info.hasVideo) mode = 'audio';
       renderPreview('ready');
       App.sfx('pop');
     } catch (e) {
-      if (ticket !== analyzing) return;
+      if (me !== last) return;
+      me.state = 'error';
       App.sfx('error');
       renderPreview('error', I18n.error(e));
+    } finally {
+      if (me === last) analyzeButton(false);
     }
+  }
+
+  // Emptying the link field is the explicit reset: the preview goes and the next link is read from scratch.
+  function clearLink() {
+    last = null; info = null; section = false;
+    q('.dl-preview').hidden = true;
+    analyzeButton(false);
+    refresh();
   }
 
   function renderPreview(state, msg = '') {
@@ -196,7 +224,8 @@
       run(addRow(info, { section: part || undefined }));
     }
     // Clear the composer so the next link can be pasted right away.
-    q('#url').value = ''; info = null; section = false; q('.dl-preview').hidden = true; refresh();
+    q('#url').value = '';
+    clearLink();
   }
 
   window.api.dl.onProgress(({ id, stage, p, speed, eta }) => {
@@ -273,6 +302,7 @@
         <button id="dl-update" class="ghost sm" type="button">${I.retry}${t('dl.update')}</button>
       </footer>`;
     q('#url').addEventListener('keydown', (e) => { if (e.key === 'Enter') analyze(q('#url').value); });
+    q('#url').addEventListener('input', () => { if (!q('#url').value.trim()) clearLink(); });
     q('#url').addEventListener('paste', (e) => { e.preventDefault(); analyze(e.clipboardData.getData('text')); });
     q('#dl-paste').onclick = async () => analyze(await window.api.clipboard());
     q('#dl-analyze').onclick = () => analyze(q('#url').value);
@@ -302,5 +332,5 @@
       } else if (e.ctrlKey && e.key === 'Enter' && info) { e.preventDefault(); start(); }
     },
   });
-  Tools.download = { analyze, start };
+  Tools.download = { analyze, start, nextStep };
 })();

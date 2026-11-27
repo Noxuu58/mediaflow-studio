@@ -271,6 +271,9 @@ const n1 = (n, one, many) => (n === 1 ? one : many); // singular / plural (block
     "ins.f.type": "Tipo",
     "ins.f.title": "Nome",
     "ins.f.blocks": "Blocchi",
+    "dl.analyzeBusy": "Analisi…",
+    "dl.inProgress": "Questo link è già in analisi",
+    "dl.already": "Già analizzato — svuota il campo o incolla un altro link per ricominciare",
   },
 };
 }
