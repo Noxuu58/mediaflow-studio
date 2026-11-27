@@ -217,9 +217,30 @@ test('every text key the new tools use exists in English (so in every language)'
   const en = globalThis.MF_LOCALES.en.strings;
   const files = ['compressor', 'autocut', 'gif', 'inspector'].map((n) => fs.readFileSync(path.join(__dirname, '..', 'src', 'tools', `${n}.js`), 'utf8'));
   const keys = new Set(files.flatMap((src) => [...src.matchAll(/'((?:cmp|cut|gif|ins|q|common|unit|adv)\.[A-Za-z0-9.]+)'/g)].map((m) => m[1])));
-  for (const [p, list] of [['cmp.t.', ['8', '20', '25', '50', '100', 'custom']], ['cut.t.', ['cut', 'xml', 'edl']], ['gif.t.', ['gif', 'webp']]]) list.forEach((x) => keys.add(p + x));
+  for (const [p, list] of [['cmp.t.', ['8', '20', '25', '50', '100', 'custom']], ['cut.t.', ['cut', 'xml', 'edl']], ['gif.t.', ['gif', 'webp']], ['gif.style.', ['bounce', 'float', 'pulse', 'sway', 'shake', 'spin', 'sparkle']], ['nav.', ['capture', 'prep', 'edit', 'enhance', 'export', 'diag']]]) list.forEach((x) => keys.add(p + x));
   for (const k of ['err.TOO_SMALL', 'err.BAD_SIZE', 'err.ALL_SILENT']) keys.add(k);
   const missing = [...keys].filter((k) => !(k in en));
   assert.deepStrictEqual(missing, []);
   assert.ok(keys.size > 100, `${keys.size} keys checked`);
+});
+
+test('GIF: a still image comes to life — every motion loops, transparency kept', async () => {
+  const { STYLES } = require('../src/gif');
+  // A round logo on a transparent background.
+  ff('-f', 'lavfi', '-i', 'color=c=black:s=120x80,format=rgba,geq=r=10:g=132:b=255:a=\'if(lt(hypot(X-60,Y-40),36),255,0)\'', '-frames:v', '1', s('logo.png'));
+  for (const style of STYLES) {
+    const file = await makeGif(s('logo.png'), { format: 'gif', style, seconds: 1, fps: 12, height: 'source' }, out);
+    const v = JSON.parse(execFileSync(FFPROBE, ['-v', 'error', '-of', 'json', '-count_frames', '-show_streams', file])).streams[0];
+    assert.deepStrictEqual([v.width, v.height, Number(v.nb_read_frames)], [120, 80, 12], `${style}: size and one loop of frames`);
+    assert.match(path.basename(file), new RegExp(` ${style}\.gif$`));
+    // The corner is outside the circle: it must stay see-through in every frame.
+    const corner = execFileSync(FFMPEG, ['-v', 'error', '-i', file, '-vf', 'format=rgba,crop=2:2:0:0', '-f', 'rawvideo', '-']);
+    for (let i = 3; i < corner.length; i += 4) assert.strictEqual(corner[i], 0, `${style}: transparent corner`);
+  }
+  const webp = fs.readFileSync(await makeGif(s('logo.png'), { format: 'webp', style: 'bounce', seconds: 2, fps: 15, height: 'source' }, out));
+  assert.ok(webp.includes(Buffer.from('ANMF')) && webp.includes(Buffer.from('ALPH')) || webp.includes(Buffer.from('VP8L')), 'animated WebP with alpha');
+  ff('-f', 'lavfi', '-i', 'testsrc2=s=640x480', '-frames:v', '1', s('still.jpg'));
+  const photo = await makeGif(s('still.jpg'), { format: 'gif', style: 'pulse', seconds: 2, fps: 10, height: '320' }, out); // a plain photo, no alpha
+  assert.strictEqual(JSON.parse(execFileSync(FFPROBE, ['-v', 'error', '-of', 'json', '-count_frames', '-show_streams', photo])).streams[0].nb_read_frames, '20');
+  assert.throws(() => gifSettings({ style: 'wink' }), /UNSUPPORTED/);
 });

@@ -4,7 +4,7 @@
 
 # MediaFlow Studio
 
-**Convert · Download · Trim · Extract · Enhance · Compress · Auto-Cut · GIF · Inspect**
+**Download · Convert · Trim · Auto-Cut · Extract · Enhance · Compress · GIF · Inspect**
 
 An everyday media toolkit for **video editors** — one fast, offline Windows app with a dark *liquid glass* interface.
 Install it in two clicks: everything is included, nothing else to set up.
@@ -31,17 +31,17 @@ Install it in two clicks: everything is included, nothing else to set up.
 
 ## Tools
 
-| | Tool | What it does |
-| :-- | :-- | :-- |
-| 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control — and **My presets** saves those settings under a name, to reuse or share as a JSON file. |
-| ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. Download **only a part** (say 1:05 → 1:42) or a **whole playlist** in one click. |
-| ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
-| 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
-| 🗜️ | **Compressor** | Fit a video into a size — **8 MB**, **20 MB for Discord**, **25 MB for e-mail**, or your own. The bitrate is worked out from the duration and two passes spend it where the picture needs it: the file never goes over, and the resolution steps down when a sharp 720p beats a blocky 1080p. |
-| 🔇 | **Auto-Cut** | Removes the silences of a rush, podcast or tutorial (level, minimum length and breathing room adjustable). Get the **cut file**, or a **timeline** — FCP 7 **XML** for Premiere Pro and DaVinci Resolve, or a CMX 3600 **EDL** — that opens with every cut in place on your original media, still adjustable. |
-| 🎞️ | **GIF & Stickers** | A video passage as a **GIF** with a palette made for that clip (no grain, no banding) or an **animated WebP**. Start time, length, 10–30 fps, max height, loop. |
-| 🔍 | **Inspector** | Everything a file says about itself: container, codecs, profiles, colour, bitrates, channels, tags, creation date, and the EXIF / XMP of photos. Private details (GPS position, camera, dates, software) are flagged — **Clean metadata** makes a copy without them in a second, without re-encoding. |
-| 🪄 | **AI Enhance** | Two modes, 100% local on your graphics card: **Upscaling** with Real-ESRGAN (videos 720p → 4K — even at the same size it rebuilds detail and removes compression blocks — and **photos and images ×2 / ×3 / ×4** in PNG, JPG or WebP, transparency kept) and **Interpolation** with RIFE (smooth motion up to 240 fps — 60, 120, 180 or 240). Lower targets are a classic downscale / frame drop. |
+| Step | | Tool | What it does |
+| :-- | :-- | :-- | :-- |
+| *Capture* | ⬇️ | **Downloader** | Paste a link from YouTube, TikTok, Instagram, X, Vimeo, SoundCloud and 1,000+ sites. Video or audio, in the quality you choose — H.264 + AAC preferred so it drops straight into your editor. Download **only a part** (say 1:05 → 1:42) or a **whole playlist** in one click. |
+| *Preparation* | 🔄 | **Converter** | One-click presets — **TikTok / Shorts**, **Clean export (YouTube)**, **Proxy for editing (ProRes)**, **Extract audio** — or any format. Variable frame rate is detected and fixed, HDR is tone-mapped for 8-bit deliveries, 10-bit and timecode are kept, and **GPU encoding** (NVIDIA / Intel / AMD) is used automatically. **Advanced** mode unlocks ProRes / DNxHR, bit depth, frame rate, resolution and audio-track control — and **My presets** saves those settings under a name, to reuse or share as a JSON file. |
+| *Editing* | ✂️ | **Trimmer** | Preview, filmstrip timeline, in / out handles. **Fast** mode cuts instantly without re-encoding; **Frame-accurate** mode re-encodes at maximum quality. |
+|  | 🔇 | **Auto-Cut** | Removes the silences of a rush, podcast or tutorial (level, minimum length and breathing room adjustable). Get the **cut file**, or a **timeline** — FCP 7 **XML** for Premiere Pro and DaVinci Resolve, or a CMX 3600 **EDL** — that opens with every cut in place on your original media, still adjustable. |
+|  | 🎧 | **Audio Extractor** | Pull the audio out of any video as `WAV` `MP3` `FLAC` `M4A`, with **loudness normalization** (−14 / −16 / −23 LUFS), noise reduction and low-cut. Advanced: pick or mix tracks, mono, **split L / R** (lav + camera mic), 24-bit, 48 kHz. |
+| *Enhancement* | 🪄 | **AI Enhance** | Two modes, 100% local on your graphics card: **Upscaling** with Real-ESRGAN (videos 720p → 4K — even at the same size it rebuilds detail and removes compression blocks — and **photos and images ×2 / ×3 / ×4** in PNG, JPG or WebP, transparency kept) and **Interpolation** with RIFE (smooth motion up to 240 fps — 60, 120, 180 or 240). Lower targets are a classic downscale / frame drop. |
+| *Export & sharing* | 🗜️ | **Compressor** | Fit a video into a size — **8 MB**, **20 MB for Discord**, **25 MB for e-mail**, or your own. The bitrate is worked out from the duration and two passes spend it where the picture needs it: the file never goes over, and the resolution steps down when a sharp 720p beats a blocky 1080p. |
+|  | 🎞️ | **GIF & Stickers** | A video passage — or a **still image** (PNG, JPEG, WebP) brought to life with a looping motion: bounce, float, pulse, sway, shake, spin or sparkle — as a **GIF** with a palette made for that clip (no grain, no banding, transparency kept) or an **animated WebP**. 10–30 fps, max height (320p for stickers), loop. |
+| *Diagnostics* | 🔍 | **Inspector** | Everything a file says about itself: container, codecs, profiles, colour, bitrates, channels, tags, creation date, and the EXIF / XMP of photos. Private details (GPS position, camera, dates, software) are flagged — **Clean metadata** makes a copy without them in a second, without re-encoding. |
 
 <div align="center">
 <img src="docs/screenshots/trimmer.png" alt="Trimmer" width="32%">
@@ -53,9 +53,9 @@ Install it in two clicks: everything is included, nothing else to set up.
 <img src="docs/screenshots/compressor.png" alt="Compressor — a target size per video" width="49%">
 <img src="docs/screenshots/auto-cut.png" alt="Auto-Cut — cut file, Premiere / Resolve XML or EDL" width="49%">
 <br>
-<img src="docs/screenshots/gif.png" alt="GIF & Stickers — GIF or animated WebP" width="49%">
+<img src="docs/screenshots/gif.png" alt="GIF & Stickers — GIF or animated WebP, from a video or a still image" width="49%">
 <img src="docs/screenshots/inspector.png" alt="Inspector — every detail of a file, private details flagged" width="49%">
-<br><sub><b>Compressor</b> · <b>Auto-Cut</b> · <b>GIF & Stickers</b> · <b>Inspector</b> — new in 1.3.</sub>
+<br><sub><b>Compressor</b> · <b>Auto-Cut</b> · <b>GIF & Stickers</b> (videos and still images) · <b>Inspector</b> — new in 1.3.</sub>
 </div>
 
 <div align="center">

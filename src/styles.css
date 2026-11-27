@@ -121,8 +121,9 @@ body.collapsed { --side-w: 68px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; white-space: nowrap; transition: opacity 0.3s, transform 0.45s var(--ease); }
 .brand-text b { font: 600 14.5px/1.2 var(--font-display); letter-spacing: -0.015em; }
 .brand-text span { font-size: 11px; color: var(--text-3); letter-spacing: 0.03em; }
-nav { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 6px 10px; display: flex; flex-direction: column; gap: 3px; } /* 9 tools: scrolls in a short window */
-.nav-section { font-size: 11px; font-weight: 600; color: var(--text-3); padding: 8px 12px 6px; white-space: nowrap; transition: opacity 0.3s; }
+nav { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; } /* 9 tools: scrolls in a short window */
+.nav-section { font-size: 10.5px; line-height: 14px; font-weight: 600; color: var(--text-3); padding: 7px 12px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; transition: opacity 0.3s; }
+.nav-section:first-of-type { padding-top: 2px; }
 .nav-item {
   position: relative; z-index: 1; overflow: hidden;
   display: flex; align-items: center; gap: 11px;

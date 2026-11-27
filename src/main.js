@@ -30,7 +30,7 @@ nativeTheme.themeSource = 'dark'; // dark acrylic tint and dialogs even when Win
 function createWindow() {
   const win = new BrowserWindow({
     title: 'MediaFlow Studio',
-    width: 1180, height: 760, minWidth: 820, minHeight: 560,
+    width: 1180, height: 800, minWidth: 820, minHeight: 560, // 800: the grouped sidebar fits without scrolling
     backgroundColor: '#00000000',
     backgroundMaterial: 'acrylic',
     titleBarStyle: 'hidden',

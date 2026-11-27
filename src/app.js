@@ -12,6 +12,16 @@ const App = (() => {
   const { t } = I18n;
   const tools = [];
   let active = null;
+  // Sidebar order = an editing workflow: get the media, prepare it, edit, enhance, deliver, check.
+  // (tool ids; a tool missing from this list goes at the end)
+  const NAV = [
+    ['nav.capture', ['download']],
+    ['nav.prep', ['convert']],
+    ['nav.edit', ['trim', 'autocut', 'extract']],
+    ['nav.enhance', ['enhance']],
+    ['nav.export', ['compress', 'gif']],
+    ['nav.diag', ['inspect']],
+  ];
 
   const store = {
     get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -195,7 +205,13 @@ const App = (() => {
   function start() {
     I18n.apply(document);
     $('#nav').setAttribute('aria-label', t('app.tools'));
+    const placed = new Set(NAV.flatMap(([, ids]) => ids));
+    const groups = [...NAV, ['', tools.map((x) => x.id).filter((id) => !placed.has(id))]];
+    const order = groups.flatMap(([, ids]) => ids);
+    tools.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
     for (const x of tools) {
+      const group = groups.find(([, ids]) => ids[0] === x.id);
+      if (group?.[0]) $('#nav').append(Object.assign(document.createElement('div'), { className: 'nav-section', textContent: t(group[0]) }));
       const b = document.createElement('button');
       b.className = 'nav-item'; b.type = 'button'; b.dataset.id = x.id; b.title = x.label;
       b.innerHTML = `<span class="nav-icon">${x.icon}</span><span class="nav-text">${x.label}</span>`;
