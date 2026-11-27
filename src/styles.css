@@ -121,7 +121,7 @@ body.collapsed { --side-w: 68px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; white-space: nowrap; transition: opacity 0.3s, transform 0.45s var(--ease); }
 .brand-text b { font: 600 14.5px/1.2 var(--font-display); letter-spacing: -0.015em; }
 .brand-text span { font-size: 11px; color: var(--text-3); letter-spacing: 0.03em; }
-nav { position: relative; flex: 1; padding: 6px 10px; display: flex; flex-direction: column; gap: 3px; }
+nav { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 6px 10px; display: flex; flex-direction: column; gap: 3px; } /* 9 tools: scrolls in a short window */
 .nav-section { font-size: 11px; font-weight: 600; color: var(--text-3); padding: 8px 12px 6px; white-space: nowrap; transition: opacity 0.3s; }
 .nav-item {
   position: relative; z-index: 1; overflow: hidden;
@@ -318,7 +318,7 @@ optgroup legend { padding: 6px 10px 3px; font-size: 10.5px; font-weight: 700; le
 .row.run .bar i::after, .global.on .bar i::after { opacity: 1; }
 
 /* ---------------------------------------------------------------- Converter: hero (empty state) */
-.tool-convert, .tool-download, .tool-extract, .tool-trim, .tool-enhance { padding: 0 26px 0 22px; }
+.tool-convert, .tool-download, .tool-extract, .tool-trim, .tool-enhance, .tool-compress, .tool-autocut, .tool-gif, .tool-inspect { padding: 0 26px 0 22px; }
 /* Drop zone: subtle dashed outline. A file dragged over it (body.drop-zone, set by app.js) lights it up
    in electric blue with a tinted fill and a 1% grow. */
 .hero {
@@ -642,6 +642,7 @@ b.image { color: var(--c-image); } b.audio { color: var(--c-audio); } b.video { 
 .preset-text b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .preset-text small { font-size: 11.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .route select.wide { width: 152px; text-transform: none; letter-spacing: 0; }
+.tool-autocut .route select.wide, .tool-gif .route select.wide { width: 184px; } /* "XML · Premiere / Resolve", "Animated WebP" on one line */
 optgroup { background: #232327; color: var(--text-3); font-style: normal; }
 
 /* ---------------------------------------------------------------- Advanced (Pro settings) */
@@ -699,7 +700,7 @@ optgroup { background: #232327; color: var(--text-3); font-style: normal; }
 .tag { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; letter-spacing: 0.02em; cursor: default; }
 .tag.warn { color: #ffd08a; background: rgba(255,159,10,0.14); box-shadow: inset 0 0 0 0.5px rgba(255,159,10,0.5); }
 .tag.pro { display: none; color: #9fd3ff; background: rgba(10,132,255,0.12); box-shadow: inset 0 0 0 0.5px rgba(10,132,255,0.45); }
-.adv-on .tag.pro, .tool-enhance .tag.pro { display: inline-block; } /* AI Enhance: output size of images */
+.adv-on .tag.pro, .tool-enhance .tag.pro, .tool-compress .tag.pro, .tool-gif .tag.pro { display: inline-block; } /* what each file will become */
 
 /* ---------------------------------------------------------------- Queue options (Audio Extractor) */
 .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 4px 12px; animation: toolIn 0.5s var(--ease) both; }
@@ -710,6 +711,44 @@ optgroup { background: #232327; color: var(--text-3); font-style: normal; }
 .tool-enhance .opt { flex-direction: column; align-items: stretch; gap: 5px; font-size: 11.5px; font-weight: 500; }
 .tool-enhance .opt select { min-width: 0; width: 100%; }
 .opt[hidden] { display: none; } /* AI Enhance shows only the settings the files in the queue use */
+/* Text options (custom size in MB, GIF start time) */
+.opt-text { display: inline-flex; align-items: center; gap: 6px; }
+.opt-text .tcode { width: 76px; }
+.opt-text small { color: var(--text-3); }
+
+/* ---------------------------------------------------------------- Inspector */
+.tool-inspect .ins-body { display: none; flex: 1; min-height: 0; overflow-y: auto; flex-direction: column; gap: 12px; padding: 2px 4px 20px; }
+.tool-inspect.loaded .ins-empty { display: none; }
+.tool-inspect.loaded .ins-body { display: flex; animation: toolIn 0.5s var(--ease) both; }
+.ins-loading { display: flex; align-items: center; gap: 10px; color: var(--text-2); padding: 30px; justify-content: center; }
+.ins-head { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; }
+.ins-head .name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ins-head .spec { color: var(--text-3); font-size: 12px; margin-top: 2px; }
+.ins-privacy { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; background: rgba(48,209,88,0.08); box-shadow: inset 0 0 0 0.5px rgba(48,209,88,0.35); }
+.ins-privacy.warn { background: rgba(255,159,10,0.09); box-shadow: inset 0 0 0 0.5px rgba(255,159,10,0.4); }
+.ins-privacy > div { flex: 1; min-width: 0; }
+.ins-privacy b { font-size: 13.5px; }
+.ins-privacy p { margin: 2px 0 0; font-size: 12px; color: var(--text-2); }
+.ins-privacy-icon svg { width: 22px; height: 22px; color: var(--green); stroke-width: 2; }
+.ins-privacy.warn .ins-privacy-icon svg { color: #ffb340; }
+.ins-privacy .primary { height: 34px; gap: 7px; flex: none; }
+.ins-privacy .primary svg { width: 15px; height: 15px; }
+.ins-result { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: rgba(255,255,255,0.04); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.1); }
+.ins-result[hidden] { display: none; }
+.ins-result .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.ins-result[draggable="true"] { cursor: grab; }
+.ins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.ins-card { padding: 14px 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--surface-hi), inset 0 0 0 0.5px rgba(255,255,255,0.08); }
+.ins-card h3 { margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.ins-card dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 12.5px; }
+.ins-card dt { color: var(--text-2); }
+.ins-card dd { margin: 0; overflow-wrap: anywhere; user-select: text; font-variant-numeric: tabular-nums; }
+.ins-wide { flex: none; }
+.ins-tags { width: 100%; border-collapse: collapse; font-size: 12px; user-select: text; }
+.ins-tags td { padding: 5px 8px; border-top: 0.5px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.ins-tags td:first-child { color: var(--text-3); width: 60px; white-space: nowrap; }
+.ins-tags td:nth-child(2) { color: var(--text-2); width: 34%; }
+.ins-tags tr.private td:nth-child(2), .ins-tags tr.private td:nth-child(3) { color: #ffb340; }
 .pill.toggle { gap: 6px; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; padding: 0 12px 0 10px; }
 .pill.toggle svg { width: 13px; height: 13px; stroke-width: 2.6; opacity: 0.25; transition: opacity 0.25s, transform 0.4s var(--spring); transform: scale(0.8); }
 .pill.toggle.on { color: #9fd3ff; background: linear-gradient(180deg, rgba(10,132,255,0.38), rgba(10,132,255,0.14)); box-shadow: inset 0 1px 0 rgba(150,205,255,0.45), inset 0 0 0 0.5px rgba(10,132,255,0.8), 0 8px 20px -8px rgba(10,132,255,0.9); }

@@ -10,7 +10,8 @@
 //   targets(info) -> ['mp3', ...]                     output formats offered for that file
 //   defaultTarget(item, last) -> 'mp3'                initial choice (last = the format picked most recently)
 //   allowSame                                         also offer the source's own format
-//   options: [{ id, label, type: 'select'|'toggle', choices: [[value, labelKey]], value }]   always visible
+//   targetLabel(x) -> 'text'                          optional: label of an output choice (default: preset name or format)
+//   options: [{ id, label, type: 'select'|'toggle'|'text', choices: [[value, labelKey]], value, placeholder, unit }]   always visible
 //   shownOptions(items) -> Set of option ids          optional: only these options are shown (the others don't apply)
 //   advanced: [same shape]                            "Advanced" panel, collapsed by default (Pro settings)
 //   presets: [{ id: '@name', icon, kinds: ['video'] }] one-click bar; labels from i18n 'preset.<name>' / 'preset.<name>.sub'
@@ -29,13 +30,13 @@ function QueueTool(cfg) {
   const allOptions = [...(cfg.options || []), ...(cfg.advanced || [])].filter((o) => o.id); // section headers have no id
   const opts = Object.fromEntries(allOptions.map((o) => [o.id, App.store.get(key(o.id)) ?? o.value]));
   const isPreset = (x) => x.startsWith('@');
-  const label = (x) => (isPreset(x) ? t(`preset.${x.slice(1)}`) : x);
+  const label = (x) => cfg.targetLabel?.(x) ?? (isPreset(x) ? t(`preset.${x.slice(1)}`) : x);
   const optionsHtml = (list) => {
     const presets = list.filter(isPreset), formats = list.filter((x) => !isPreset(x));
     const opt = (x, sel) => `<option value="${x}"${x === sel ? ' selected' : ''}>${F.esc(label(x))}</option>`;
-    return (sel) => (presets.length
+    return (sel) => (presets.length && formats.length
       ? `<optgroup label="${F.esc(t('q.presets'))}">${presets.map((x) => opt(x, sel)).join('')}</optgroup><optgroup label="${F.esc(t('q.formats'))}">${formats.map((x) => opt(x, sel)).join('')}</optgroup>`
-      : formats.map((x) => opt(x, sel)).join(''));
+      : list.map((x) => opt(x, sel)).join(''));
   };
   const q = (s) => root.querySelector(s);
   const same = (a, b) => a === b || (a === 'jpeg' && b === 'jpg');
@@ -130,7 +131,7 @@ function QueueTool(cfg) {
       <div class="route">
         <span class="fmt ${it.kind}">${F.ext(it.path)}</span>
         <svg class="route-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
-        <select class="${offered.some(isPreset) ? 'wide' : ''}" aria-label="${F.esc(t('q.outFmt', { name: it.name }))}">${optionsHtml(offered)(it.target)}</select>
+        <select class="${offered.some(isPreset) || cfg.targetLabel ? 'wide' : ''}" aria-label="${F.esc(t('q.outFmt', { name: it.name }))}">${optionsHtml(offered)(it.target)}</select>
       </div>
       <div class="state"></div>
       <button class="icon remove" type="button" title="${F.esc(t('q.remove'))}">${I.x}</button>
@@ -259,8 +260,12 @@ function QueueTool(cfg) {
       ? `<div class="adv-section">${I[o.icon] || ''}<b>${t(o.section)}</b><span>${t(o.sub)}</span>${o.status ? `<span class="chip ${o.status}"></span>` : ''}</div>`
       : o.type === 'select'
         ? `<label class="opt">${t(o.label)} <select data-opt="${o.id}">${o.choices.map(([v, k]) => `<option value="${v}"${v === opts[o.id] ? ' selected' : ''}>${t(k)}</option>`).join('')}</select></label>`
+        : o.type === 'text'
+          ? `<label class="opt">${t(o.label)} <span class="opt-text"><input class="tcode" type="text" spellcheck="false" data-opt="${o.id}" value="${F.esc(opts[o.id] ?? '')}" placeholder="${F.esc(o.placeholder || '')}">${o.unit ? `<small>${t(o.unit)}</small>` : ''}</span></label>`
         : `<button type="button" class="pill toggle${opts[o.id] === '1' ? ' on' : ''}" data-opt="${o.id}" aria-pressed="${opts[o.id] === '1'}">${I.check}${t(o.label)}</button>`)).join('');
-    box.querySelectorAll('select[data-opt]').forEach((s) => s.onchange = () => { opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); items.forEach(tags); });
+    box.querySelectorAll('select[data-opt], input[data-opt]').forEach((s) => s[s.tagName === 'INPUT' ? 'oninput' : 'onchange'] = () => {
+      opts[s.dataset.opt] = s.value; App.store.set(key(s.dataset.opt), s.value); items.forEach(tags); refresh();
+    });
     box.querySelectorAll('button[data-opt]').forEach((b) => b.onclick = () => {
       const id = b.dataset.opt;
       opts[id] = opts[id] === '1' ? '0' : '1';

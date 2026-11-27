@@ -8,6 +8,10 @@ const ai = require('./ai');
 const { createLog } = require('./log');
 const { readable } = require('./errors');
 const presets = require('./presets');
+const { compress } = require('./compress');
+const { autocut } = require('./silence');
+const { makeGif } = require('./gif');
+const { inspect, clean } = require('./inspect');
 
 const logsDir = () => app.getPath('logs');
 const log = createLog(() => path.join(logsDir(), 'main.log'));
@@ -84,6 +88,12 @@ ipcMain.handle('ai-info', (_e, fresh) => ai.detect(FFMPEG, fresh));
 ipcMain.handle('trim', (e, { id, src, range, outDir }) => awake(trim(src, range, outDir, progress(e, id), id), `trim ${path.basename(src)} ${JSON.stringify(range)}`));
 ipcMain.handle('extract', (e, { id, src, options, outDir }) => awake(extract(src, options, outDir, progress(e, id), id), `extract ${path.basename(src)} ${JSON.stringify(options)}`));
 ipcMain.handle('strip', (_e, src, duration) => strip(src, duration));
+// v1.3 tools: target-size compressor, silence Auto-Cut, GIF & WebP, metadata inspector / cleaner.
+ipcMain.handle('compress', (e, { id, src, size, outDir }) => awake(compress(src, { size }, outDir, progress(e, id), id), `compress ${path.basename(src)} → ${size} MB`));
+ipcMain.handle('autocut', (e, { id, src, target, options, outDir }) => awake(autocut(src, target, options, outDir, progress(e, id), id), `auto-cut ${path.basename(src)} → ${target} ${JSON.stringify(options)}`));
+ipcMain.handle('gif', (e, { id, src, options, outDir }) => awake(makeGif(src, options, outDir, progress(e, id), id), `gif ${path.basename(src)} ${JSON.stringify(options)}`));
+ipcMain.handle('inspect', (_e, src) => inspect(src).catch((err) => { log('warn', 'inspect', err); throw readable(err); }));
+ipcMain.handle('clean', (e, { id, src, outDir }) => awake(clean(src, outDir, progress(e, id), id), `clean ${path.basename(src)}`));
 
 ipcMain.handle('clipboard', () => clipboard.readText());
 ipcMain.handle('downloads-dir', () => app.getPath('downloads'));

@@ -489,4 +489,6 @@ async function extract(src, opts = {}, outDir, onProgress = () => {}, id = Symbo
   });
 }
 
-module.exports = { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, encoders, setEncoder, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG };
+module.exports = { aiRequested, convert, encode, trim, extract, strip, probe, detectGpu, encoders, setEncoder, settingsFor, buildArgs, PRESETS, ADVANCED, kindOf, TARGETS, AUDIO_OUT, cancel, killAll, FFMPEG,
+  // building blocks for the other engines (compress.js, silence.js, gif.js, inspect.js)
+  run, produce, withJob, alive, outPath, remove, encodeArgs, ext, collect, json, FFPROBE, TONEMAP };

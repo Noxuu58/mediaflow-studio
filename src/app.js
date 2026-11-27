@@ -41,6 +41,10 @@ const App = (() => {
     screen: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="13" rx="3"/><path d="m10.5 9 4 2.5-4 2.5z" fill="currentColor"/></svg>',
     layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
     pause: '<svg viewBox="0 0 24 24"><path d="M7 5v14M17 5v14" stroke-width="3.2"/></svg>',
+    compress: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M8 8l3.5 3.5M11.5 8.5v3h-3M16 16l-3.5-3.5M12.5 15.5v-3h3"/></svg>',
+    silence: '<svg viewBox="0 0 24 24"><path d="M3 12h1.5M6.5 9v6M9.5 6.5v11M17.5 8v8M20.5 11v2"/><path d="M13.5 4v16" stroke-dasharray="2 2.6"/></svg>',
+    gif: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3.5"/><path d="M10 10.2A2.3 2.3 0 1 0 10 14v-1.6H8.6M13 9.6v4.8M16 14.4V9.6h2.6M16 12h2.2"/></svg>',
+    inspect: '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.6-4.6M7.8 9h5.4M7.8 12h3.6"/></svg>',
   };
 
   // Formatting helpers shared by every tool (locale-aware numbers and units).
